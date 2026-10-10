@@ -150,7 +150,9 @@ def main() -> None:
             question = first(row, ("question", "query", "instruction", "text"))
             if question is None:
                 continue
-            image_value = first(row, ("image", "decoded_image", "image_path", "document"))
+            # Prefer decoded bytes over repository-relative display names such
+            # as ``1.jpg`` which are not local filesystem paths.
+            image_value = first(row, ("decoded_image", "image", "image_path", "document"))
             if image_value is None and args.require_image:
                 continue
             image_path = None
