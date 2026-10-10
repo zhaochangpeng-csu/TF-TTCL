@@ -129,4 +129,7 @@ python evaluate/multimodal/candidate_oracle.py \
 Every run writes `manifest.json`, `predictions.jsonl`, and `memory.jsonl` with
 the Git SHA, prompt/config hashes, model names, token usage, latency, retrieval
 trace, and memory write decisions. Reusing an output directory resumes the same
-stream; use a new directory for every dataset, method, model, and seed.
+stream; use a new directory for every dataset, method, model, and seed. The
+operational `experiment.resume` toggle is excluded from the scientific config
+hash, so a run started with `resume: false` can be safely continued with
+`resume: true`; every other configuration field remains compatibility-checked.

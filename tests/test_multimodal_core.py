@@ -417,6 +417,33 @@ class RunnerTests(unittest.TestCase):
             with self.assertRaisesRegex(FileExistsError, "Refusing to append"):
                 second.run([sample])
 
+    def test_resume_toggle_is_operational_not_a_scientific_hash_change(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            image = root / "image.png"
+            Image.new("RGB", (8, 8), "red").save(image)
+            sample = MultimodalSample("q1", "scienceqa_img", "Which?", (str(image),))
+            first = EviMemRunner(
+                FakeVLM(),
+                EvidenceMemory(HashMultimodalEmbedder()),
+                root / "run",
+                method="zero_shot",
+                resume=False,
+                config_snapshot={"experiment": {"resume": False}, "seed": 0},
+            )
+            first.run([sample])
+            resumed = EviMemRunner(
+                FakeVLM(),
+                EvidenceMemory(HashMultimodalEmbedder()),
+                root / "run",
+                method="zero_shot",
+                resume=True,
+                config_snapshot={"experiment": {"resume": True}, "seed": 0},
+            )
+            resumed.run([sample])
+            rows = (root / "run" / "predictions.jsonl").read_text(encoding="utf-8").splitlines()
+            self.assertEqual(len(rows), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

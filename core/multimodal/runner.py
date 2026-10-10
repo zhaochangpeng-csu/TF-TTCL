@@ -58,6 +58,15 @@ def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def _scientific_config_hash(config: Mapping[str, Any]) -> str:
+    """Hash scientific settings while ignoring the operational resume toggle."""
+    normalized = json.loads(_stable_json(config))
+    experiment = normalized.get("experiment")
+    if isinstance(experiment, dict):
+        experiment.pop("resume", None)
+    return _sha256_text(_stable_json(normalized))
+
+
 def _git_sha() -> str:
     try:
         return subprocess.check_output(
@@ -408,17 +417,24 @@ class EviMemRunner:
         if not self.resume or not self.manifest_path.exists():
             return
         payload = json.loads(self.manifest_path.read_text(encoding="utf-8"))
+        stored_config = payload.get("config")
+        stored_config_hash = (
+            _scientific_config_hash(stored_config)
+            if isinstance(stored_config, dict)
+            else payload.get("config_hash")
+        )
         expected = {
             "model": self.model.model_name,
             "embedding_model": self.memory.embedder.name,
             "method": self.method,
             "prompt_hash": self._prompt_hash,
-            "config_hash": _sha256_text(_stable_json(self.config_snapshot)),
+            "config_hash": _scientific_config_hash(self.config_snapshot),
         }
+        actual = {**payload, "config_hash": stored_config_hash}
         mismatches = {
-            key: (payload.get(key), value)
+            key: (actual.get(key), value)
             for key, value in expected.items()
-            if payload.get(key) != value
+            if actual.get(key) != value
         }
         if mismatches:
             raise ValueError(
@@ -438,7 +454,7 @@ class EviMemRunner:
             "method": self.method,
             "seed": self.seed,
             "prompt_hash": self._prompt_hash,
-            "config_hash": _sha256_text(_stable_json(self.config_snapshot)),
+            "config_hash": _scientific_config_hash(self.config_snapshot),
             "config": self.config_snapshot,
             "processed": processed,
             "memory_size": len(self.memory),
