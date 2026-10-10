@@ -39,8 +39,6 @@ def _load_predictions(path: str) -> tuple[list[str], dict[str, dict[str, Any]]]:
 
 
 def _prediction_text(dataset: str, row: dict[str, Any]) -> str:
-    if dataset.lower() == "mathvista":
-        return str(row.get("response", row["answer"]))
     return str(row["answer"])
 
 

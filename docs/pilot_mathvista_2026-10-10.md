@@ -15,12 +15,12 @@ official-style evaluator were used for all results listed below.
 
 | Variant | Accuracy | Memory writes | Diagnostic conclusion |
 |---|---:|---:|---|
-| Zero-shot | 14/20 (70%) | 0 | Corrected reference baseline |
-| Evidence selection, no memory | 14/20 (70%) | 0 | Extra verification did not improve this slice |
-| Token-budget-matched majority | 14/20 (70%) | 0 | Same answers as zero-shot despite much larger budget |
+| Zero-shot | 15/20 (75%) | 0 | Corrected reference baseline |
+| Evidence selection, no memory | 15/20 (75%) | 0 | Extra verification did not improve this slice |
+| Token-budget-matched majority | 15/20 (75%) | 0 | Same answers as zero-shot despite much larger budget |
 | Initial EviMem | 10/20 (50%) | 10 | Unrelated episode retrieval caused severe pollution |
-| Strict evidence gate + similarity floors | 13/20 (65%) | 4 | Removed three of four baseline-to-error regressions |
-| Clean/memory-conditioned dual path | 14/20 (70%) | 4 | Recovered baseline aggregate; paired analysis still required |
+| Strict evidence gate + similarity floors | 14/20 (70%) | 4 | Removed four of five baseline-to-error regressions |
+| Clean/memory-conditioned dual path | 15/20 (75%) | 4 | Recovered baseline aggregate without a gain |
 
 The initial failure is informative rather than a positive result: forcing a
 top-1 episode when no relevant memory exists propagates errors. The remediation
@@ -42,6 +42,24 @@ The token-budget-matched run used 100,779 prompt and 7,985 completion tokens
 (114.21 seconds summed request latency). It produced exactly the same 20
 answers as zero-shot. EviMem versus this control again had 0 wins and 0 losses;
 only sample 1 changed (`0.0` to `0.5`), with both answers scored incorrect.
+
+Candidate-oracle analysis found no selection headroom on either the
+budget-matched or dual-path run: selected accuracy and the six-candidate oracle
+were both 75%. Ten dual-path samples and eleven budget-matched samples had only
+one unique answer across all six trajectories; the mean was 1.5 unique answers.
+Thus none of the five remaining errors had a correct candidate available for
+the evidence selector. Candidate recall, not Borda weighting, is the immediate
+bottleneck on this slice.
+
+## Evaluation correction
+
+The first analysis pass reported 70% for the four non-polluted variants. A
+regression audit found that the option parser treated the final `a` in
+`Common water flea` as option A, so a correct option-B response was scored
+incorrectly. The parser is now anchored to a standalone option letter at the
+start of the extracted answer, and offline evaluation consumes the runner's
+already-normalized `answer` field. All figures in the table above are the
+recomputed values; the earlier 70% figures are superseded.
 
 ## Decision rule
 

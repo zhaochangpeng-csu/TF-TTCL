@@ -21,6 +21,7 @@ core/previous_log
 draft.md
 scripts/eval/time_cal
 .claude/
+.codex-sync/
 
 # ignore files
 CLAUDE.md

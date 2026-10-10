@@ -92,6 +92,16 @@ python evaluate/multimodal/compare.py \
   --dataset mathvista --image-root data/multimodal/mathvista
 ```
 
+Before changing evidence weights, separate candidate-generation recall from
+selection quality:
+
+```bash
+python evaluate/multimodal/candidate_oracle.py \
+  --predictions core/exp_res/mm/.../predictions.jsonl \
+  --labels data/multimodal/mathvista/mathvista_testmini.jsonl \
+  --dataset mathvista --image-root data/multimodal/mathvista
+```
+
 Every run writes `manifest.json`, `predictions.jsonl`, and `memory.jsonl` with
 the Git SHA, prompt/config hashes, model names, token usage, latency, retrieval
 trace, and memory write decisions. Reusing an output directory resumes the same

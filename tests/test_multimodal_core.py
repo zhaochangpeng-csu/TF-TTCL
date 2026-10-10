@@ -25,6 +25,7 @@ from core.multimodal.schema import (
     ComponentScores,
     EvidenceClaim,
     EvidenceVerdict,
+    EvaluationTarget,
     Experience,
     GenerationResponse,
     MultimodalSample,
@@ -38,6 +39,7 @@ from evaluate.multimodal.metrics import (
     score_prediction,
     vqa_accuracy,
 )
+from evaluate.multimodal.candidate_oracle import summarize_candidate_oracle
 from scripts.prepare_multimodal_dataset import cached_modelscope_parquet_rows
 from scripts.prepare_scienceqa import convert_scienceqa
 
@@ -255,6 +257,29 @@ class ImageAndClientTests(unittest.TestCase):
 
 
 class MetricsTests(unittest.TestCase):
+    def test_candidate_oracle_separates_generation_and_selection_errors(self):
+        targets = {
+            "q1": EvaluationTarget("q1", ("B", "blue"), {}),
+            "q2": EvaluationTarget("q2", ("A", "red"), {}),
+        }
+        rows = [
+            {
+                "sample_id": "q1",
+                "answer": "a",
+                "candidate_answers": [{"answer": "a"}, {"answer": "b"}],
+            },
+            {
+                "sample_id": "q2",
+                "answer": "a",
+                "candidate_answers": [{"answer": "a"}, {"answer": "a"}],
+            },
+        ]
+        summary = summarize_candidate_oracle(rows, targets, "scienceqa_img")
+        self.assertEqual(summary["selected_score"], 0.5)
+        self.assertEqual(summary["candidate_oracle_score"], 1.0)
+        self.assertEqual(summary["selection_regrets"], 1)
+        self.assertEqual(summary["all_candidates_same"], 1)
+
     def test_paired_statistics_preserve_sample_pairing(self):
         baseline = [1.0, 0.0, 1.0, 0.0]
         candidate = [1.0, 1.0, 0.0, 1.0]
@@ -274,6 +299,23 @@ class MetricsTests(unittest.TestCase):
                 "Reasoning...\nFinal answer: \\( d \\approx 1.24 \\ \\text{cm} \\)",
                 ["1.2"],
                 {"answer_type": "float", "precision": 1, "question_type": "free_form"},
+            ),
+            1.0,
+        )
+        flea_metadata = {
+            "answer_type": "text",
+            "question_type": "multi_choice",
+            "choices": ["Tilapia", "Common water flea", "Great diving beetle", "Tadpole"],
+        }
+        self.assertEqual(
+            score_prediction(
+                "mathvista", "Final answer: B", ["Common water flea"], flea_metadata
+            ),
+            1.0,
+        )
+        self.assertEqual(
+            score_prediction(
+                "mathvista", "Common water flea", ["Common water flea"], flea_metadata
             ),
             1.0,
         )

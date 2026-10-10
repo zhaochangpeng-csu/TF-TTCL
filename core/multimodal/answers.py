@@ -39,16 +39,18 @@ def extract_mathvista_answer(text: str, metadata: Mapping[str, Any] | None = Non
     answer_type = str(metadata.get("answer_type", "")).lower()
 
     if question_type == "multi_choice" and choices:
-        option_patterns = (
-            r"(?:option|answer)?\s*\(?([A-Za-z])\)?(?:[).:\-]|\s|$)",
-            r"\(([A-Za-z])\)",
+        # Only treat a leading standalone letter as an option marker. An
+        # unanchored search incorrectly maps ordinary answers ending in A-E
+        # (for example, "Common water flea") to an option letter.
+        option_match = re.match(
+            r"^\s*(?:option\s*|answer\s*)?\(?([A-Za-z])\)?(?=$|[).:\-\s])",
+            raw,
+            flags=re.I,
         )
-        for pattern in option_patterns:
-            matches = re.findall(pattern, raw, flags=re.I)
-            if matches:
-                index = ord(matches[-1].upper()) - ord("A")
-                if 0 <= index < len(choices):
-                    return choices[index]
+        if option_match:
+            index = ord(option_match.group(1).upper()) - ord("A")
+            if 0 <= index < len(choices):
+                return choices[index]
         lowered = raw.lower().strip(" .")
         exact = next((choice for choice in choices if choice.lower() == lowered), None)
         if exact is not None:
