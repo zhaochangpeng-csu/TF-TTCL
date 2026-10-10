@@ -83,7 +83,12 @@ class VLLMMultimodalEmbedder:
         self.api_key = api_key
         self.client = httpx.Client(timeout=timeout)
 
-    def _encode(self, text: str, image_paths: Sequence[str]) -> np.ndarray:
+    def _encode(
+        self,
+        text: str,
+        image_paths: Sequence[str],
+        instruction: str = "Represent the user's input.",
+    ) -> np.ndarray:
         content: list[Dict[str, Any]] = [
             {"type": "image_url", "image_url": {"url": image_to_data_url(path)}}
             for path in image_paths
@@ -94,7 +99,13 @@ class VLLMMultimodalEmbedder:
             headers={"Authorization": f"Bearer {self.api_key}"},
             json={
                 "model": self.name,
-                "input": [{"role": "user", "content": content}],
+                "input": [
+                    {
+                        "role": "system",
+                        "content": [{"type": "text", "text": instruction}],
+                    },
+                    {"role": "user", "content": content},
+                ],
                 "encoding_format": "float",
             },
         )
@@ -104,13 +115,22 @@ class VLLMMultimodalEmbedder:
         return _normalize(vector)
 
     def encode_text(self, text: str) -> np.ndarray:
-        return self._encode(f"Represent this question for retrieval:\n{text}", ())
+        return self._encode(
+            text,
+            (),
+            "Retrieve prior questions and reasoning rules relevant to this visual question.",
+        )
 
     def encode_image(self, image_paths: Sequence[str]) -> np.ndarray:
-        return self._encode("Represent the visual evidence for retrieval.", image_paths)
+        return self._encode(
+            "Visual evidence",
+            image_paths,
+            "Retrieve prior visual evidence relevant to this image.",
+        )
 
     def encode_joint(self, text: str, image_paths: Sequence[str]) -> np.ndarray:
         return self._encode(
-            f"Represent this visual question and its evidence for retrieval:\n{text}",
+            text,
             image_paths,
+            "Retrieve prior multimodal evidence relevant to this visual question.",
         )

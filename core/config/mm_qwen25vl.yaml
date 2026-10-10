@@ -18,12 +18,11 @@ model:
   request_logprobs: false
 
 memory:
-  # Deterministic smoke-test backend only. Use vllm_multimodal for paper runs.
-  embedder: hash
-  dimensions: 256
-  # api_url: http://127.0.0.1:10000/v1
-  # model_name: Qwen/Qwen3-VL-Embedding-2B
-  # api_key_env: EMBEDDING_API_KEY
+  embedder: vllm_multimodal
+  api_url: http://127.0.0.1:9001/v1
+  model_name: Qwen/Qwen3-VL-Embedding-2B
+  api_key_env: EMBEDDING_API_KEY
+  timeout: 300
   max_experiences: 1000
   rrf_k: 60
 
