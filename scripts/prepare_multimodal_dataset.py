@@ -63,7 +63,10 @@ def main() -> None:
             f"Cannot import ModelScope MsDataset because dependency {missing!r} is missing"
         ) from exc
 
-    load_kwargs = {"dataset_name": args.dataset_id, "split": args.split, "revision": args.revision}
+    # ModelScope calls the dataset repository revision ``version``.  Passing
+    # ``revision`` leaks into Hugging Face's loader and collides with the
+    # revision already supplied by ModelScope.
+    load_kwargs = {"dataset_name": args.dataset_id, "split": args.split, "version": args.revision}
     if args.subset:
         load_kwargs["subset_name"] = args.subset
     dataset = MsDataset.load(**load_kwargs)
