@@ -31,8 +31,15 @@ from core.multimodal.schema import (
     SamplingConfig,
 )
 from core.multimodal.scoring import select_with_evidence
-from evaluate.multimodal.metrics import anls, score_prediction, vqa_accuracy
+from evaluate.multimodal.metrics import (
+    anls,
+    paired_bootstrap_delta_ci,
+    paired_randomization_p_value,
+    score_prediction,
+    vqa_accuracy,
+)
 from scripts.prepare_multimodal_dataset import cached_modelscope_parquet_rows
+from scripts.prepare_scienceqa import convert_scienceqa
 
 
 def candidate(name: str, answer: str, logprob: float = -0.2) -> Candidate:
@@ -64,6 +71,43 @@ class FakeVLM:
 
 
 class SchemaAndDatasetTests(unittest.TestCase):
+    def test_official_scienceqa_conversion_filters_images_and_omits_explanations(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            image_dir = root / "images" / "val" / "42"
+            image_dir.mkdir(parents=True)
+            Image.new("RGB", (8, 8), "blue").save(image_dir / "image.png")
+            problems = {
+                "42": {
+                    "split": "val",
+                    "question": "Which color?",
+                    "hint": "Look at the square.",
+                    "image": "image.png",
+                    "choices": ["red", "blue"],
+                    "answer": 1,
+                    "lecture": "blue objects reflect blue light",
+                    "solution": "The square is blue.",
+                },
+                "43": {
+                    "split": "val",
+                    "question": "Text only?",
+                    "image": None,
+                    "choices": ["yes", "no"],
+                    "answer": 0,
+                },
+            }
+            problems_path = root / "problems.json"
+            problems_path.write_text(json.dumps(problems), encoding="utf-8")
+            output = root / "scienceqa_img_val.jsonl"
+            manifest = convert_scienceqa(problems_path, root / "images", output, "val")
+            row = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["count"], 1)
+            self.assertEqual(row["answer"], 1)
+            self.assertEqual(row["question_type"], "multi_choice")
+            self.assertIn("Look at the square", row["question"])
+            self.assertNotIn("lecture", row)
+            self.assertNotIn("solution", row)
+
     def test_modelscope_cache_fallback_uses_url_provenance(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -211,6 +255,18 @@ class ImageAndClientTests(unittest.TestCase):
 
 
 class MetricsTests(unittest.TestCase):
+    def test_paired_statistics_preserve_sample_pairing(self):
+        baseline = [1.0, 0.0, 1.0, 0.0]
+        candidate = [1.0, 1.0, 0.0, 1.0]
+        delta, low, high = paired_bootstrap_delta_ci(
+            baseline, candidate, samples=1000, seed=7
+        )
+        self.assertEqual(delta, 0.25)
+        self.assertLessEqual(low, delta)
+        self.assertGreaterEqual(high, delta)
+        self.assertEqual(paired_randomization_p_value(baseline, baseline), 1.0)
+        self.assertGreater(paired_randomization_p_value(baseline, candidate), 0.0)
+
     def test_mathvista_type_aware_response_extraction(self):
         self.assertEqual(
             score_prediction(

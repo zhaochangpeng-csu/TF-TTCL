@@ -123,3 +123,67 @@ def bootstrap_mean_ci(
     low = means[int(0.025 * (samples - 1))]
     high = means[int(0.975 * (samples - 1))]
     return sum(values) / len(values), low, high
+
+
+def paired_bootstrap_delta_ci(
+    baseline: Sequence[float],
+    candidate: Sequence[float],
+    samples: int = 10000,
+    seed: int = 0,
+) -> tuple[float, float, float]:
+    """Bootstrap the paired candidate-minus-baseline score difference."""
+    if len(baseline) != len(candidate):
+        raise ValueError("Paired score sequences must have equal length")
+    if not baseline:
+        return 0.0, 0.0, 0.0
+    differences = [right - left for left, right in zip(baseline, candidate)]
+    rng = random.Random(seed)
+    means = sorted(
+        sum(rng.choice(differences) for _ in differences) / len(differences)
+        for _ in range(samples)
+    )
+    low = means[int(0.025 * (samples - 1))]
+    high = means[int(0.975 * (samples - 1))]
+    return sum(differences) / len(differences), low, high
+
+
+def paired_randomization_p_value(
+    baseline: Sequence[float],
+    candidate: Sequence[float],
+    samples: int = 10000,
+    seed: int = 0,
+) -> float:
+    """Two-sided paired sign-randomization test for arbitrary bounded metrics.
+
+    Zero-difference pairs carry no information and are omitted. The exact test
+    is used for up to 20 non-zero pairs; larger comparisons use a deterministic
+    Monte Carlo estimate with the standard plus-one correction.
+    """
+    if len(baseline) != len(candidate):
+        raise ValueError("Paired score sequences must have equal length")
+    differences = [
+        right - left
+        for left, right in zip(baseline, candidate)
+        if not math.isclose(right, left, abs_tol=1e-12)
+    ]
+    if not differences:
+        return 1.0
+    observed = abs(sum(differences))
+    tolerance = 1e-12
+    if len(differences) <= 20:
+        extreme = 0
+        total = 1 << len(differences)
+        for mask in range(total):
+            statistic = sum(
+                value if mask & (1 << index) else -value
+                for index, value in enumerate(differences)
+            )
+            extreme += abs(statistic) + tolerance >= observed
+        return extreme / total
+
+    rng = random.Random(seed)
+    extreme = 0
+    for _ in range(samples):
+        statistic = sum(value if rng.getrandbits(1) else -value for value in differences)
+        extreme += abs(statistic) + tolerance >= observed
+    return (extreme + 1) / (samples + 1)

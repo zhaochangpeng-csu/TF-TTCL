@@ -51,6 +51,11 @@ an immutable revision instead of silently replacing an existing directory.
 JSONL plus PNG images. Keep these under `data/multimodal/`, which is ignored by
 Git. Validate paths and label isolation before spending GPU time:
 
+For ScienceQA, prefer the official `lupantech/ScienceQA` `problems.json` and
+split image archives. Convert an extracted split with
+`scripts/prepare_scienceqa.py`; it keeps the optional textual hint, excludes
+lecture/solution fields, and can restrict the stream to image-bearing samples.
+
 ```bash
 python core/mm_main.py --config core/config/mm_qwen25vl.yaml --validate-config
 python core/mm_main.py --config core/config/mm_qwen25vl.yaml
@@ -73,6 +78,18 @@ python evaluate/multimodal/evaluate.py \
   --predictions core/exp_res/mm/.../predictions.jsonl \
   --labels data/multimodal/scienceqa_img_test.jsonl \
   --dataset scienceqa_img --image-root data/multimodal/images
+```
+
+Compare two runs only after inference has finished. The comparator requires
+identical sample IDs and reports the paired score delta, bootstrap confidence
+interval, per-sample wins/losses, and a paired randomization p-value:
+
+```bash
+python evaluate/multimodal/compare.py \
+  --baseline core/exp_res/mm/.../zero_shot/.../predictions.jsonl \
+  --candidate core/exp_res/mm/.../evimem/.../predictions.jsonl \
+  --labels data/multimodal/mathvista/mathvista_testmini.jsonl \
+  --dataset mathvista --image-root data/multimodal/mathvista
 ```
 
 Every run writes `manifest.json`, `predictions.jsonl`, and `memory.jsonl` with
