@@ -13,6 +13,7 @@ model:
   api_url: http://127.0.0.1:9000/v1
   api_key_env: OPENAI_API_KEY
   model_name: Qwen/Qwen2.5-VL-7B-Instruct
+  revision: cc594898137f460bfe9f0759e9844b3ce807cfb5
   max_tokens: 256
   timeout: 300
   request_logprobs: false
@@ -21,6 +22,8 @@ memory:
   embedder: vllm_multimodal
   api_url: http://127.0.0.1:9001/v1
   model_name: Qwen/Qwen3-VL-Embedding-2B
+  revision: master
+  weights_sha256: c73fa9caeddeb3ff831d46c085a7a5708343248ca777e90f2d486964464509c1
   api_key_env: EMBEDDING_API_KEY
   timeout: 300
   max_experiences: 1000

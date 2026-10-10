@@ -68,6 +68,10 @@ compatibility only and are not benchmark results.
 
 If a model is absent, use `scripts/download_modelscope_model.py`; always record
 an immutable revision instead of silently replacing an existing directory.
+When a provider only records a mutable revision such as `master`, also record
+the SHA-256 of the served weight artifact in the run configuration.  The
+ScienceQA development config pins the Qwen2.5-VL Hub commit and fingerprints
+the locally served Qwen3-VL-Embedding weights this way.
 
 ## Data and runs
 
