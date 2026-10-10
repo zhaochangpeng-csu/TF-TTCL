@@ -1,0 +1,44 @@
+experiment:
+  dataset: mathvista
+  data_path: data/multimodal/mathvista/mathvista_testmini.jsonl
+  image_root: data/multimodal/mathvista
+  output_dir: core/exp_res/mm/mathvista/qwen3vl/zero_shot/seed0_smoke
+  method: zero_shot
+  limit: 2
+  order: forward
+  seed: 0
+  resume: true
+
+model:
+  api_url: http://127.0.0.1:9000/v1
+  api_key_env: OPENAI_API_KEY
+  model_name: Qwen/Qwen3-VL-8B-Instruct
+  max_tokens: 512
+  timeout: 300
+  request_logprobs: false
+
+memory:
+  embedder: vllm_multimodal
+  api_url: http://127.0.0.1:9001/v1
+  model_name: Qwen/Qwen3-VL-Embedding-2B
+  api_key_env: EMBEDDING_API_KEY
+  timeout: 300
+  max_experiences: 1000
+  rrf_k: 60
+  rule_min_similarity: 0.50
+  episode_min_similarity: 0.75
+
+ablation:
+  text_variants: true
+  image_variant: true
+  joint_variant: true
+  invariance: true
+  sensitivity: true
+  evidence: true
+  logprob_tiebreak: true
+  rule_memory: true
+  episode_memory: true
+  positive_memory: true
+  negative_memory: true
+  memory_gate: true
+  retrieval_modalities: [text, image, joint]

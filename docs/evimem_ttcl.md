@@ -22,9 +22,11 @@ Use the existing environment and only the assigned GPUs:
 
 ```bash
 conda activate ttt
-CUDA_VISIBLE_DEVICES=2 vllm serve /home/lthpc/private/models/Qwen2.5-VL-7B-Instruct \
+CUDA_VISIBLE_DEVICES=2 VLLM_USE_FLASHINFER_SAMPLER=0 \
+  vllm serve /home/lthpc/private/models/Qwen2.5-VL-7B-Instruct \
   --served-model-name Qwen/Qwen2.5-VL-7B-Instruct \
-  --port 9000 --trust-remote-code
+  --host 127.0.0.1 --port 9000 --trust-remote-code \
+  --gpu-memory-utilization 0.85 --max-model-len 8192
 ```
 
 When GPU 2 has at least 12 GB free, serve Qwen3-VL-Embedding alongside the generator:
@@ -41,6 +43,28 @@ This low-memory pooling service can coexist with the 7B generator on the
 72&nbsp;GB GPU 2 used during development. Do not assume that ratio is portable:
 check free memory first, and never displace an existing GPU process. GPU 0 is an
 alternative only after its current job exits naturally.
+
+The downloaded cross-architecture generators are served one at a time on the
+same port. Stop the current port-9000 service before switching models; do not
+start competing generators on GPU 2:
+
+```bash
+CUDA_VISIBLE_DEVICES=2 VLLM_USE_FLASHINFER_SAMPLER=0 vllm serve \
+  /home/lthpc/private/models/Qwen3-VL-8B-Instruct \
+  --served-model-name Qwen/Qwen3-VL-8B-Instruct \
+  --port 9000 --trust-remote-code --gpu-memory-utilization 0.85 --max-model-len 8192
+
+CUDA_VISIBLE_DEVICES=2 VLLM_USE_FLASHINFER_SAMPLER=0 vllm serve \
+  /home/lthpc/private/models/InternVL3_5-8B-HF \
+  --served-model-name OpenGVLab/InternVL3.5-8B-HF \
+  --port 9000 --trust-remote-code --gpu-memory-utilization 0.85 --max-model-len 8192
+```
+
+Both alternate backends passed a two-sample, label-blind MathVista interface
+smoke test on 2026-10-10. Qwen3-VL wrote two complete predictions under
+`qwen3vl/zero_shot/seed0_smoke`; InternVL3.5 did the same under
+`internvl35/zero_shot/seed0_smoke`. These checks establish serving and message
+compatibility only and are not benchmark results.
 
 If a model is absent, use `scripts/download_modelscope_model.py`; always record
 an immutable revision instead of silently replacing an existing directory.
