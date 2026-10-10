@@ -1,0 +1,65 @@
+experiment:
+  data_path: "data/OPEN/wealth.json"
+  limit: 5000
+  input_order: "forward"  # forward / reverse / random could modify the order of the input data, but the evaluate folder only supports forward order.
+  shuffle_seed: 0    # only effective in random mode
+  mode: "open"
+  domain: "wealth"
+
+prompt_file_path:
+  teacher: "core/source/prompts/open/role/teacher/wealth.md"
+  ta: "core/source/prompts/open/role/ta/wealth.md"
+  student: "core/source/prompts/open/role/student/wealth.md"
+  positive_batch: "core/source/prompts/open/rule/positive/wealth.md"
+  negative_batch: "core/source/prompts/open/rule/negative/wealth.md"
+
+llm:
+  api_url: "http://127.0.0.1:8001/v1"
+  api_key: "local-tfttcl"
+  model_name: "llama32-3b"
+  max_tokens: 8192
+  max_context_tokens: 32768
+
+rag:
+  enabled: true
+  embedding_api_url: "http://127.0.0.1:10000/v1"
+  embedding_api_key: "local-tfttcl"
+  embedding_model: "qwen3-embedding-0.6b"
+
+rules:
+  max_pos_rules: 30
+  max_neg_rules: 30
+
+student:
+  number: 4
+
+batch:
+  enabled: false
+  size: 1
+
+debug:
+  save_variants: true
+  log_prompts: true
+  quiet: false
+
+security:
+  log_expected_output: false
+  write_labels_to_result: true
+  write_private_labels_file: false
+
+ablation:
+  remove_ta: false
+  remove_qsa: false
+  remove_ced: false
+  remove_crr: false
+  random_rules: false
+  use_max_ppl_for_negative_selection: false
+
+pruning:
+  enabled: false
+  max_repo_size: 100
+  strategy: ""
+  similarity_threshold: 0.95
+
+confuse_mode:
+  enabled: false
