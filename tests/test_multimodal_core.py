@@ -30,7 +30,7 @@ from core.multimodal.schema import (
     SamplingConfig,
 )
 from core.multimodal.scoring import select_with_evidence
-from evaluate.multimodal.metrics import anls, vqa_accuracy
+from evaluate.multimodal.metrics import anls, score_prediction, vqa_accuracy
 from scripts.prepare_multimodal_dataset import cached_modelscope_parquet_rows
 
 
@@ -176,6 +176,30 @@ class ImageAndClientTests(unittest.TestCase):
 
 
 class MetricsTests(unittest.TestCase):
+    def test_mathvista_type_aware_response_extraction(self):
+        self.assertEqual(
+            score_prediction(
+                "mathvista",
+                "Reasoning...\nFinal answer: \\( d \\approx 1.24 \\ \\text{cm} \\)",
+                ["1.2"],
+                {"answer_type": "float", "precision": 1, "question_type": "free_form"},
+            ),
+            1.0,
+        )
+        self.assertEqual(
+            score_prediction(
+                "mathvista",
+                "Final answer: (B)",
+                ["blue"],
+                {
+                    "answer_type": "text",
+                    "question_type": "multi_choice",
+                    "choices": ["red", "blue", "green"],
+                },
+            ),
+            1.0,
+        )
+
     def test_vqa_and_anls(self):
         self.assertAlmostEqual(vqa_accuracy("cat", ["cat"] * 10), 1.0)
         self.assertGreater(anls("hello", ["helo"]), 0.5)

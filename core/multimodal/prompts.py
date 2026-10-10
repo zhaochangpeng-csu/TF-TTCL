@@ -25,11 +25,28 @@ The positive rule must explain how to ground a similar answer in image evidence;
 the negative rule must identify the unsupported reasoning pattern."""
 
 
-def format_question(question: str, choices: list[str] | tuple[str, ...]) -> str:
-    if not choices:
-        return question
-    rendered = "\n".join(f"({chr(65 + i)}) {choice}" for i, choice in enumerate(choices))
-    return f"{question}\nOptions:\n{rendered}"
+def format_question(
+    question: str,
+    choices: list[str] | tuple[str, ...],
+    metadata: dict | None = None,
+) -> str:
+    metadata = metadata or {}
+    parts = [question]
+    if choices:
+        rendered = "\n".join(f"({chr(65 + i)}) {choice}" for i, choice in enumerate(choices))
+        parts.append(f"Options:\n{rendered}")
+    if str(metadata.get("question_type", "")).lower() == "multi_choice":
+        parts.append("Put only the correct option letter after `Final answer:`.")
+    elif str(metadata.get("answer_type", "")).lower() == "integer":
+        parts.append("Put only the integer value, without units, after `Final answer:`.")
+    elif str(metadata.get("answer_type", "")).lower() == "float":
+        precision = int(float(metadata.get("precision", 2)))
+        parts.append(
+            f"Put only the numeric value rounded to {precision} decimal places, without units, after `Final answer:`."
+        )
+    elif str(metadata.get("answer_type", "")).lower() == "list":
+        parts.append("Put only a Python-style list after `Final answer:`.")
+    return "\n".join(parts)
 
 
 def format_memory_context(rules: list[str], episodes: list[str]) -> str:

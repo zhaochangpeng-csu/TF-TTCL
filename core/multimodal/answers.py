@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from typing import Optional
+from typing import Any, Mapping, Optional, Sequence
 
 
 _FINAL_PATTERNS = (
@@ -22,7 +22,66 @@ def extract_final_answer(text: str) -> str:
     return text.splitlines()[-1].strip() if text else ""
 
 
-def normalize_answer(text: str, dataset: str = "") -> str:
+_NUMBER_PATTERN = re.compile(r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?")
+
+
+def extract_mathvista_answer(text: str, metadata: Mapping[str, Any] | None = None) -> str:
+    """Deterministically extract MathVista's short answer from a response.
+
+    The official benchmark uses a separate LLM for general answer extraction.
+    EviMem experiments avoid that external teacher dependency by enforcing a
+    final-answer line and applying a transparent answer-type-aware extractor.
+    """
+    metadata = metadata or {}
+    raw = unicodedata.normalize("NFKC", extract_final_answer(text)).strip()
+    choices: Sequence[str] = [str(item) for item in metadata.get("choices", [])]
+    question_type = str(metadata.get("question_type", "")).lower()
+    answer_type = str(metadata.get("answer_type", "")).lower()
+
+    if question_type == "multi_choice" and choices:
+        option_patterns = (
+            r"(?:option|answer)?\s*\(?([A-Za-z])\)?(?:[).:\-]|\s|$)",
+            r"\(([A-Za-z])\)",
+        )
+        for pattern in option_patterns:
+            matches = re.findall(pattern, raw, flags=re.I)
+            if matches:
+                index = ord(matches[-1].upper()) - ord("A")
+                if 0 <= index < len(choices):
+                    return choices[index]
+        lowered = raw.lower().strip(" .")
+        exact = next((choice for choice in choices if choice.lower() == lowered), None)
+        if exact is not None:
+            return exact
+        contained = [choice for choice in choices if choice.lower() in lowered]
+        if len(contained) == 1:
+            return contained[0]
+
+    if answer_type == "list":
+        lists = re.findall(r"\[[^\[\]]*\]", raw)
+        return lists[-1] if lists else raw
+
+    if answer_type in {"integer", "float"}:
+        numbers = _NUMBER_PATTERN.findall(raw.replace(",", ""))
+        if numbers:
+            value = float(numbers[-1])
+            if answer_type == "integer":
+                return str(int(value))
+            try:
+                precision = int(float(metadata.get("precision", 2)))
+            except (TypeError, ValueError):
+                precision = 2
+            return str(round(value, precision))
+    return raw
+
+
+def normalize_answer(
+    text: str,
+    dataset: str = "",
+    metadata: Mapping[str, Any] | None = None,
+) -> str:
+    if dataset.lower() == "mathvista":
+        text = extract_mathvista_answer(text, metadata)
     answer = unicodedata.normalize("NFKC", extract_final_answer(text)).strip().lower()
     answer = answer.replace("’", "'")
     answer = re.sub(r"^[\s\"']+|[\s\"']+$", "", answer)

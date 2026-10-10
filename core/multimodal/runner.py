@@ -197,9 +197,10 @@ class EviMemRunner:
         system: str,
         sampling: SamplingConfig,
     ) -> Candidate:
+        answer_metadata = {**sample.metadata, "choices": list(sample.choices)}
         response = self._generate(
             system,
-            format_question(question, list(sample.choices)),
+            format_question(question, list(sample.choices), answer_metadata),
             images,
             sampling,
         )
@@ -207,7 +208,7 @@ class EviMemRunner:
             candidate_id=f"{sample.sample_id}:{trajectory}",
             trajectory=trajectory,
             response=response,
-            normalized_answer=normalize_answer(response.content, sample.dataset),
+            normalized_answer=normalize_answer(response.content, sample.dataset, answer_metadata),
             question_variant=question,
             image_paths=tuple(images),
         )
@@ -261,17 +262,18 @@ class EviMemRunner:
         mismatch_images: Sequence[str],
     ) -> List[str]:
         results = []
+        answer_metadata = {**sample.metadata, "choices": list(sample.choices)}
         probes = [("blank", blank_images)]
         if mismatch_images:
             probes.append(("mismatch", mismatch_images))
         for offset, (name, images) in enumerate(probes):
             response = self._generate(
                 ANSWER_SYSTEM,
-                format_question(sample.question, list(sample.choices)),
+                format_question(sample.question, list(sample.choices), answer_metadata),
                 images,
                 self._sampling(0.0, sample_index * 100 + 30 + offset),
             )
-            results.append(normalize_answer(response.content, sample.dataset))
+            results.append(normalize_answer(response.content, sample.dataset, answer_metadata))
         return results
 
     def _verify_top_answers(
@@ -284,10 +286,11 @@ class EviMemRunner:
         first = {answer: next(i for i, c in enumerate(candidates) if c.normalized_answer == answer) for answer in counts}
         top_answers = sorted(counts, key=lambda answer: (-counts[answer], first[answer]))[:2]
         verdicts: Dict[str, EvidenceVerdict] = {}
+        answer_metadata = {**sample.metadata, "choices": list(sample.choices)}
         for offset, answer in enumerate(top_answers):
             representative = next(c for c in candidates if c.normalized_answer == answer)
             prompt = (
-                f"Question:\n{format_question(sample.question, list(sample.choices))}\n\n"
+                f"Question:\n{format_question(sample.question, list(sample.choices), answer_metadata)}\n\n"
                 f"Proposed answer:\n{representative.response.content}"
             )
             response = self._generate(
@@ -310,8 +313,9 @@ class EviMemRunner:
             if decision.negative_representative
             else "No reliable negative candidate was identified."
         )
+        answer_metadata = {**sample.metadata, "choices": list(sample.choices)}
         prompt = (
-            f"Question:\n{format_question(sample.question, list(sample.choices))}\n\n"
+            f"Question:\n{format_question(sample.question, list(sample.choices), answer_metadata)}\n\n"
             f"Evidence-supported candidate:\n{decision.representative.response.content}\n\n"
             f"Unsupported or weaker candidate:\n{negative}"
         )

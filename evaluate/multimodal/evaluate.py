@@ -39,7 +39,7 @@ def main() -> None:
     scores = [
         score_prediction(
             args.dataset,
-            row["answer"],
+            row.get("response", row["answer"]) if args.dataset.lower() == "mathvista" else row["answer"],
             targets[row["sample_id"]].answers,
             targets[row["sample_id"]].metadata,
         )

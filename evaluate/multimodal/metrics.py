@@ -79,7 +79,7 @@ def anls(prediction: str, targets: Sequence[str], threshold: float = 0.5) -> flo
 
 def _mathvista_normalize(value: str, metadata: Mapping[str, Any]) -> str:
     answer_type = str(metadata.get("answer_type", "")).lower()
-    cleaned = normalize_answer(value, "mathvista")
+    cleaned = normalize_answer(value, "mathvista", metadata)
     try:
         if answer_type == "integer":
             return str(int(round(float(cleaned))))
