@@ -15,6 +15,7 @@ scripts/eval/accuracy/prev
 scripts/eval/accuracy/vibe
 scripts/eval/similarity
 data_cleaning/
+data/multimodal/
 core/exp_res
 core/previous_log
 draft.md

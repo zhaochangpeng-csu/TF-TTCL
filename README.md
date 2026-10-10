@@ -13,6 +13,11 @@
 
 Training-Free Test-Time Contrastive Learning (TF-TTCL) is a training-free framework for improving frozen or API-accessed LLMs during inference. It learns from test-time experience by contrasting better and worse reasoning trajectories, distilling them into reusable rules, and retrieving those rules for later questions.
 
+This fork also contains **EviMem-TTCL**, an experimental multimodal extension
+for frozen VLMs. It adds bidirectional visual-evidence validation and
+trust-gated online contrastive memory without changing the original text
+pipeline. See [the multimodal experiment guide](docs/evimem_ttcl.md).
+
 Accepted by Findings of ACL 2026.
 
 ## Repository Layout
