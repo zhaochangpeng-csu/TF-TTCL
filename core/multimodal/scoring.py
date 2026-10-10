@@ -116,7 +116,13 @@ def select_with_evidence(
     verifier = verdicts.get(best.key)
     evidence_gate = (
         "evidence" not in components
-        or (verifier is not None and not verifier.parse_error and scores[best.key].evidence >= 0.5)
+        or (
+            verifier is not None
+            and not verifier.parse_error
+            and verifier.answer_status == "entailed"
+            and bool(verifier.claims)
+            and all(claim.status == "entailed" for claim in verifier.claims)
+        )
     )
     sensitivity_gate = "sensitivity" not in components or scores[best.key].sensitivity > 0.0
     eligible = wins[best.key] >= required_wins and evidence_gate and sensitivity_gate

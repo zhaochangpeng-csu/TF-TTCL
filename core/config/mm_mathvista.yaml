@@ -23,6 +23,8 @@ memory:
   timeout: 300
   max_experiences: 1000
   rrf_k: 60
+  rule_min_similarity: 0.50
+  episode_min_similarity: 0.75
 ablation: &full_method
   text_variants: true
   image_variant: true

@@ -110,6 +110,8 @@ def main() -> None:
         embedder,
         max_experiences=int(memory_config.get("max_experiences", 1000)),
         rrf_k=int(memory_config.get("rrf_k", 60)),
+        rule_min_similarity=float(memory_config.get("rule_min_similarity", 0.5)),
+        episode_min_similarity=float(memory_config.get("episode_min_similarity", 0.75)),
     )
     runner = EviMemRunner(
         model=model,

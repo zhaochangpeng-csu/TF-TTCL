@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+import numpy as np
 from PIL import Image
 
 from core.mm_main import apply_overrides
@@ -131,6 +132,17 @@ class EvidenceScoringTests(unittest.TestCase):
         self.assertEqual(decision.scores.evidence, 0.5)
         self.assertFalse(decision.eligible_for_memory)
 
+    def test_insufficient_claim_blocks_memory_even_when_answer_is_entailed(self):
+        candidates = [candidate(f"a{i}", "A") for i in range(4)] + [candidate("b1", "B")]
+        verdicts = {
+            "a": EvidenceVerdict(
+                "entailed", [EvidenceClaim("answer claim", "insufficient")]
+            )
+        }
+        decision = select_with_evidence(candidates, ["b"], verdicts, "scienceqa_img")
+        self.assertEqual(decision.answer, "a")
+        self.assertFalse(decision.eligible_for_memory)
+
     def test_malformed_verdict_is_insufficient(self):
         verdict = parse_evidence_verdict("not json")
         self.assertTrue(verdict.parse_error)
@@ -151,12 +163,35 @@ class MemoryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             image = str(Path(directory) / "image.png")
             Image.new("RGB", (8, 8), "red").save(image)
-            memory = EvidenceMemory(HashMultimodalEmbedder())
+            memory = EvidenceMemory(
+                HashMultimodalEmbedder(),
+                rule_min_similarity=-1.0,
+                episode_min_similarity=-1.0,
+            )
             memory.add(self._experience(0, image))
             memory.add(self._experience(2, image))
             sample = MultimodalSample("q", "x", "question", (image,))
             bundle = memory.retrieve(sample, sample_index=2)
             self.assertEqual([e.experience.experience_id for e in bundle.episodes], ["e0"])
+
+    def test_similarity_floor_does_not_force_unrelated_memory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            image = str(Path(directory) / "image.png")
+            Image.new("RGB", (8, 8), "red").save(image)
+            memory = EvidenceMemory(HashMultimodalEmbedder(2))
+            experience = self._experience(0, image)
+            experience.text_embedding = [0.0, 1.0]
+            experience.image_embedding = [0.0, 1.0]
+            experience.joint_embedding = [0.0, 1.0]
+            memory.add(experience)
+            sample = MultimodalSample("q", "x", "question", (image,))
+            # Replace query methods with deterministic orthogonal vectors.
+            memory.embedder.encode_text = lambda _: np.asarray([1.0, 0.0])
+            memory.embedder.encode_image = lambda _: np.asarray([1.0, 0.0])
+            memory.embedder.encode_joint = lambda _text, _images: np.asarray([1.0, 0.0])
+            bundle = memory.retrieve(sample, sample_index=1)
+            self.assertEqual(bundle.rules, ())
+            self.assertEqual(bundle.episodes, ())
 
 
 class ImageAndClientTests(unittest.TestCase):

@@ -19,12 +19,14 @@ class RetrievedRule:
     rule_type: str
     experience_id: str
     score: float
+    similarity: float
 
 
 @dataclass(frozen=True)
 class RetrievedEpisode:
     experience: Experience
     score: float
+    similarity: float
 
 
 @dataclass(frozen=True)
@@ -44,10 +46,14 @@ class EvidenceMemory:
         embedder: MultimodalEmbedder,
         max_experiences: int = 1000,
         rrf_k: int = 60,
+        rule_min_similarity: float = 0.5,
+        episode_min_similarity: float = 0.75,
     ) -> None:
         self.embedder = embedder
         self.max_experiences = max_experiences
         self.rrf_k = rrf_k
+        self.rule_min_similarity = rule_min_similarity
+        self.episode_min_similarity = episode_min_similarity
         self._experiences: List[Experience] = []
 
     def __len__(self) -> int:
@@ -98,35 +104,68 @@ class EvidenceMemory:
         if not modalities or unknown:
             raise ValueError(f"modalities must be a non-empty subset of {sorted(query_factories)}")
         fused: Dict[str, float] = {item.experience_id: 0.0 for item in eligible}
+        similarities: Dict[str, Dict[str, float]] = {
+            item.experience_id: {} for item in eligible
+        }
         for modality in modalities:
             query = query_factories[modality]()
+            for item in eligible:
+                similarities[item.experience_id][modality] = _cosine(
+                    query, np.asarray(getattr(item, attributes[modality]), dtype=np.float32)
+                )
             ranked = sorted(
                 eligible,
-                key=lambda item: _cosine(
-                    query, np.asarray(getattr(item, attributes[modality]), dtype=np.float32)
-                ),
+                key=lambda item: similarities[item.experience_id][modality],
                 reverse=True,
             )
             for rank, item in enumerate(ranked, start=1):
                 fused[item.experience_id] += item.trust / (self.rrf_k + rank)
 
         ordered = sorted(eligible, key=lambda item: fused[item.experience_id], reverse=True)
+        rule_modalities = [name for name in ("text", "joint") if name in modalities] or list(modalities)
+        episode_modalities = ["joint"] if "joint" in modalities else (
+            ["text"] if "text" in modalities else list(modalities)
+        )
+
+        def semantic_similarity(item: Experience, selected: Sequence[str]) -> float:
+            return max(similarities[item.experience_id][name] for name in selected)
+
+        episode_candidates = [
+            item
+            for item in ordered
+            if semantic_similarity(item, episode_modalities) >= self.episode_min_similarity
+        ]
         episodes = tuple(
-            RetrievedEpisode(item, fused[item.experience_id])
-            for item in ordered[:top_episodes]
+            RetrievedEpisode(
+                item,
+                fused[item.experience_id],
+                semantic_similarity(item, episode_modalities),
+            )
+            for item in episode_candidates[:top_episodes]
         )
         rules: List[RetrievedRule] = []
         for item in ordered:
+            similarity = semantic_similarity(item, rule_modalities)
+            if similarity < self.rule_min_similarity:
+                continue
             if item.positive_rule:
                 rules.append(
                     RetrievedRule(
-                        item.positive_rule, "positive", item.experience_id, fused[item.experience_id]
+                        item.positive_rule,
+                        "positive",
+                        item.experience_id,
+                        fused[item.experience_id],
+                        similarity,
                     )
                 )
             if item.negative_rule:
                 rules.append(
                     RetrievedRule(
-                        item.negative_rule, "negative", item.experience_id, fused[item.experience_id]
+                        item.negative_rule,
+                        "negative",
+                        item.experience_id,
+                        fused[item.experience_id],
+                        similarity,
                     )
                 )
             if len(rules) >= top_rules:

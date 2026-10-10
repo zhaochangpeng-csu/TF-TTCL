@@ -21,8 +21,12 @@ DISTILL_SYSTEM = """Distill reusable reasoning guidance from a contrastive
 visual QA experience. Never state that the proposed answer is ground truth.
 Return JSON only:
 {"positive_rule":"...","negative_rule":"...","evidence_summary":"..."}.
-The positive rule must explain how to ground a similar answer in image evidence;
-the negative rule must identify the unsupported reasoning pattern."""
+The rules must transfer to a new image: describe an abstract operation or
+verification check, never copy the answer, number, color, named entity, or
+object identity from this example. The positive rule must explain how to ground
+a similar answer in image evidence. Emit an empty negative_rule when no explicit
+contradicted candidate is supplied; otherwise identify only its unsupported
+reasoning pattern. The evidence_summary may describe this image specifically."""
 
 
 def format_question(

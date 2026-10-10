@@ -27,13 +27,20 @@ CUDA_VISIBLE_DEVICES=2 vllm serve /home/lthpc/private/models/Qwen2.5-VL-7B-Instr
   --port 9000 --trust-remote-code
 ```
 
-Serve Qwen3-VL-Embedding on GPU 0 only after that GPU is free:
+When GPU 2 has at least 12 GB free, serve Qwen3-VL-Embedding alongside the generator:
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 vllm serve /home/lthpc/private/models/Qwen3-VL-Embedding-2B \
+CUDA_VISIBLE_DEVICES=2 VLLM_USE_FLASHINFER_SAMPLER=0 \
+  vllm serve /home/lthpc/private/models/Qwen3-VL-Embedding-2B \
   --served-model-name Qwen/Qwen3-VL-Embedding-2B \
-  --runner pooling --port 10000 --trust-remote-code
+  --runner pooling --port 9001 --trust-remote-code \
+  --gpu-memory-utilization 0.14 --max-model-len 8192
 ```
+
+This low-memory pooling service can coexist with the 7B generator on the
+72&nbsp;GB GPU 2 used during development. Do not assume that ratio is portable:
+check free memory first, and never displace an existing GPU process. GPU 0 is an
+alternative only after its current job exits naturally.
 
 If a model is absent, use `scripts/download_modelscope_model.py`; always record
 an immutable revision instead of silently replacing an existing directory.
@@ -52,6 +59,12 @@ python core/mm_main.py --config core/config/mm_qwen25vl.yaml
 Supported methods are `zero_shot`, `cot`, `self_consistency`,
 `budget_matched`, `direct_ttcl`, `evidence_only`, and `evimem`. All evidence,
 augmentation, memory, and retrieval-modality ablations are config switches.
+The full method only writes experiences whose answer verdict and every claim
+are `entailed`. RRF retrieval is also relevance-gated: rules require calibrated
+text/joint cosine similarity of at least 0.50 and raw episodes require joint
+similarity of at least 0.75. These fixed thresholds separate paraphrases from
+wrong-image pairs in the label-free synthetic fixture; they must not be tuned on
+benchmark answers.
 
 Offline evaluation reads labels separately:
 

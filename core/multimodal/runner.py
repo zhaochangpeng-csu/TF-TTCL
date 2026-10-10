@@ -327,11 +327,11 @@ class EviMemRunner:
         )
         try:
             payload = parse_json_object(response.content)
-            return (
-                str(payload.get("positive_rule", "")).strip(),
-                str(payload.get("negative_rule", "")).strip(),
-                str(payload.get("evidence_summary", "")).strip(),
-            )
+            positive_rule = str(payload.get("positive_rule", "")).strip()
+            negative_rule = str(payload.get("negative_rule", "")).strip()
+            if decision.negative_representative is None:
+                negative_rule = ""
+            return positive_rule, negative_rule, str(payload.get("evidence_summary", "")).strip()
         except (ValueError, TypeError, json.JSONDecodeError):
             return response.content.strip(), "", ""
 
@@ -589,6 +589,23 @@ class EviMemRunner:
                 ],
                 "counterfactual_answers": counterfactual_answers,
                 "retrieved_experience_ids": [item.experience.experience_id for item in retrieved.episodes],
+                "retrieved_episodes": [
+                    {
+                        "experience_id": item.experience.experience_id,
+                        "rrf_score": item.score,
+                        "similarity": item.similarity,
+                    }
+                    for item in retrieved.episodes
+                ],
+                "retrieved_rules": [
+                    {
+                        "experience_id": item.experience_id,
+                        "rule_type": item.rule_type,
+                        "rrf_score": item.score,
+                        "similarity": item.similarity,
+                    }
+                    for item in retrieved.rules
+                ],
                 "memory_size_before": before_memory_size,
                 "memory_size_after": len(self.memory),
                 "wrote_memory": wrote_memory,
