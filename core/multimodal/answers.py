@@ -32,7 +32,12 @@ def normalize_answer(text: str, dataset: str = "") -> str:
         answer = re.sub(r"\b(a|an|the)\b", " ", answer)
         answer = re.sub(r"\s+", " ", answer).strip()
     elif dataset.lower() in {"scienceqa", "scienceqa_img"}:
-        match = re.search(r"(?:option\s*)?\(?([a-e])\)?$", answer)
+        match = re.match(
+            r"^(?:option\s*)?\(?([a-e])\)?(?:\s*[).:\-]\s*|\s+).+$",
+            answer,
+        )
+        if not match:
+            match = re.match(r"^(?:option\s*)?\(?([a-e])\)?[.)]?$", answer)
         if match:
             answer = match.group(1)
     elif dataset.lower() == "mathvista":

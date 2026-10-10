@@ -67,6 +67,7 @@ def select_with_evidence(
     total = len(candidates)
     cf_total = max(1, len(counterfactual_answers))
     scores: Dict[str, ComponentScores] = {}
+    counterfactual_supports: Dict[str, float] = {}
 
     for group in groups:
         true_support = len(group.members) / total
@@ -75,6 +76,7 @@ def select_with_evidence(
         ) / cf_total
         verdict = verdicts.get(group.key)
         evidence = verdict.score if verdict else 0.5
+        counterfactual_supports[group.key] = cf_support
         scores[group.key] = ComponentScores(
             invariance=true_support,
             sensitivity=max(0.0, true_support - cf_support),
@@ -111,7 +113,13 @@ def select_with_evidence(
 
     best = max(groups, key=ordering)
     required_wins = len(components) // 2 + 1
-    eligible = wins[best.key] >= required_wins
+    verifier = verdicts.get(best.key)
+    evidence_gate = (
+        "evidence" not in components
+        or (verifier is not None and not verifier.parse_error and scores[best.key].evidence >= 0.5)
+    )
+    sensitivity_gate = "sensitivity" not in components or scores[best.key].sensitivity > 0.0
+    eligible = wins[best.key] >= required_wins and evidence_gate and sensitivity_gate
 
     negative_groups = [
         group
@@ -119,7 +127,7 @@ def select_with_evidence(
         if group.key != best.key
         and (
             scores[group.key].evidence < 0.34
-            or scores[group.key].sensitivity == 0.0
+            or counterfactual_supports[group.key] > scores[group.key].invariance
         )
     ]
     negative = min(negative_groups, key=ordering) if negative_groups else None
@@ -135,6 +143,7 @@ def select_with_evidence(
         negative_representative=negative.representative if negative else None,
         reason=(
             f"Borda={borda[best.key]:.3f}; component_wins={wins[best.key]}/{len(components)}; "
+            f"evidence_gate={evidence_gate}; sensitivity_gate={sensitivity_gate}; "
             f"memory={'accepted' if eligible else 'quarantined'}"
         ),
     )

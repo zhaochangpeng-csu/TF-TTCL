@@ -8,6 +8,7 @@ from pathlib import Path
 from PIL import Image
 
 from core.multimodal.client import build_multimodal_content, parse_evidence_verdict
+from core.multimodal.answers import normalize_answer
 from core.multimodal.datasets import load_local_dataset
 from core.multimodal.embeddings import HashMultimodalEmbedder
 from core.multimodal.image_ops import make_blank_views, make_fidelity_views
@@ -91,6 +92,7 @@ class EvidenceScoringTests(unittest.TestCase):
     def test_missing_verifier_is_neutral_not_positive(self):
         decision = select_with_evidence([candidate("a", "A"), candidate("b", "B")], [], {}, "scienceqa_img")
         self.assertEqual(decision.scores.evidence, 0.5)
+        self.assertFalse(decision.eligible_for_memory)
 
     def test_malformed_verdict_is_insufficient(self):
         verdict = parse_evidence_verdict("not json")
@@ -141,6 +143,11 @@ class MetricsTests(unittest.TestCase):
         self.assertAlmostEqual(vqa_accuracy("cat", ["cat"] * 10), 1.0)
         self.assertGreater(anls("hello", ["helo"]), 0.5)
         self.assertEqual(anls("abc", ["xyz"]), 0.0)
+
+    def test_scienceqa_option_parsing_does_not_consume_word_suffixes(self):
+        self.assertEqual(normalize_answer("Final answer: (A) red", "scienceqa_img"), "a")
+        self.assertEqual(normalize_answer("Final answer: red", "scienceqa_img"), "red")
+        self.assertEqual(normalize_answer("Final answer: blue", "scienceqa_img"), "blue")
 
 
 class RunnerTests(unittest.TestCase):
