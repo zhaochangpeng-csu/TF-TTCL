@@ -79,6 +79,7 @@ class Candidate:
     normalized_answer: str
     question_variant: str
     image_paths: Sequence[str]
+    memory_conditioned: bool = False
 
 
 @dataclass(frozen=True)

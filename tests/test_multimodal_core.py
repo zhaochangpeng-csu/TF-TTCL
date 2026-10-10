@@ -247,6 +247,26 @@ class MetricsTests(unittest.TestCase):
 
 
 class RunnerTests(unittest.TestCase):
+    def test_memory_intervention_keeps_three_clean_anchor_trajectories(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            image = root / "image.png"
+            Image.new("RGB", (8, 8), "red").save(image)
+            sample = MultimodalSample(
+                "q1", "scienceqa_img", "Which option?", (str(image),), ("red", "blue")
+            )
+            runner = EviMemRunner(
+                FakeVLM(), EvidenceMemory(HashMultimodalEmbedder()), root / "run"
+            )
+            candidates = runner._generate_candidates(
+                sample,
+                sample_index=0,
+                memory_context="Rules:\n- abstract prior rule",
+                fidelity_images=(str(image),),
+            )
+            self.assertEqual(len(candidates), 6)
+            self.assertEqual(sum(item.memory_conditioned for item in candidates), 3)
+
     def test_end_to_end_output_has_no_ground_truth_and_writes_memory_after_answer(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

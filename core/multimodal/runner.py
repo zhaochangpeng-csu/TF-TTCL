@@ -196,6 +196,7 @@ class EviMemRunner:
         images: Sequence[str],
         system: str,
         sampling: SamplingConfig,
+        memory_conditioned: bool = False,
     ) -> Candidate:
         answer_metadata = {**sample.metadata, "choices": list(sample.choices)}
         response = self._generate(
@@ -211,6 +212,7 @@ class EviMemRunner:
             normalized_answer=normalize_answer(response.content, sample.dataset, answer_metadata),
             question_variant=question,
             image_paths=tuple(images),
+            memory_conditioned=memory_conditioned,
         )
 
     def _generate_candidates(
@@ -226,32 +228,34 @@ class EviMemRunner:
             if self.ablation["text_variants"] or self.ablation["joint_variant"]
             else [question, question]
         )
-        system = ANSWER_SYSTEM + ("\n\n" + memory_context if memory_context else "")
+        clean_system = ANSWER_SYSTEM
+        memory_system = ANSWER_SYSTEM + ("\n\n" + memory_context if memory_context else "")
         specs = [
-            ("original_greedy", question, sample.image_paths, 0.0),
-            ("original_sampled", question, sample.image_paths, 0.7),
+            ("original_greedy", question, sample.image_paths, 0.0, False),
+            ("original_sampled", question, sample.image_paths, 0.7, False),
         ]
         if self.ablation["text_variants"]:
             specs.extend(
                 [
-                    ("text_variant_1", variants[0], sample.image_paths, 0.0),
-                    ("text_variant_2", variants[1], sample.image_paths, 0.0),
+                    ("text_variant_1", variants[0], sample.image_paths, 0.0, True),
+                    ("text_variant_2", variants[1], sample.image_paths, 0.0, True),
                 ]
             )
         if self.ablation["image_variant"]:
-            specs.append(("image_variant", question, fidelity_images or sample.image_paths, 0.0))
+            specs.append(("image_variant", question, fidelity_images or sample.image_paths, 0.0, False))
         if self.ablation["joint_variant"]:
-            specs.append(("joint_variant", variants[0], fidelity_images or sample.image_paths, 0.0))
+            specs.append(("joint_variant", variants[0], fidelity_images or sample.image_paths, 0.0, True))
         return [
             self._candidate(
                 sample,
                 name,
                 variant,
                 images,
-                system,
+                memory_system if use_memory else clean_system,
                 self._sampling(temperature, sample_index * 100 + 10 + offset),
+                memory_conditioned=bool(use_memory and memory_context),
             )
-            for offset, (name, variant, images, temperature) in enumerate(specs)
+            for offset, (name, variant, images, temperature, use_memory) in enumerate(specs)
         ]
 
     def _counterfactual_answers(
@@ -584,7 +588,11 @@ class EviMemRunner:
                     "reason": decision.reason,
                 },
                 "candidate_answers": [
-                    {"trajectory": item.trajectory, "answer": item.normalized_answer}
+                    {
+                        "trajectory": item.trajectory,
+                        "answer": item.normalized_answer,
+                        "memory_conditioned": item.memory_conditioned,
+                    }
                     for item in candidates
                 ],
                 "counterfactual_answers": counterfactual_answers,

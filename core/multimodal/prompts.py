@@ -21,10 +21,13 @@ DISTILL_SYSTEM = """Distill reusable reasoning guidance from a contrastive
 visual QA experience. Never state that the proposed answer is ground truth.
 Return JSON only:
 {"positive_rule":"...","negative_rule":"...","evidence_summary":"..."}.
-The rules must transfer to a new image: describe an abstract operation or
-verification check, never copy the answer, number, color, named entity, or
-object identity from this example. The positive rule must explain how to ground
-a similar answer in image evidence. Emit an empty negative_rule when no explicit
+The rules must transfer even if every noun, adjective, category, color, number,
+and named entity in the example changes. Replace example-specific criteria with
+generic variables such as "the requested categories". For example, do not write
+"subtract large rubber spheres"; write "enumerate the requested removal sets,
+take their union to avoid double counting, then subtract it from the total".
+The positive rule must explain how to ground a similar answer in image evidence.
+Emit an empty negative_rule when no explicit
 contradicted candidate is supplied; otherwise identify only its unsupported
 reasoning pattern. The evidence_summary may describe this image specifically."""
 
