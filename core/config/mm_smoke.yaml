@@ -1,0 +1,36 @@
+experiment:
+  dataset: scienceqa_img
+  data_path: data/multimodal/smoke/smoke.jsonl
+  image_root: data/multimodal/smoke
+  output_dir: core/exp_res/mm/smoke/qwen25vl/evimem/seed0
+  method: evimem
+  limit: 2
+  order: forward
+  seed: 0
+  resume: false
+model:
+  api_url: http://127.0.0.1:9000/v1
+  api_key_env: OPENAI_API_KEY
+  model_name: Qwen/Qwen2.5-VL-7B-Instruct
+  max_tokens: 128
+  timeout: 300
+  request_logprobs: false
+memory:
+  embedder: hash
+  dimensions: 256
+  max_experiences: 100
+  rrf_k: 60
+ablation:
+  text_variants: true
+  image_variant: true
+  joint_variant: true
+  invariance: true
+  sensitivity: true
+  evidence: true
+  logprob_tiebreak: false
+  rule_memory: true
+  episode_memory: true
+  positive_memory: true
+  negative_memory: true
+  memory_gate: true
+  retrieval_modalities: [text, image, joint]
