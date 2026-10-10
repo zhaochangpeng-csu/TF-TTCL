@@ -5,7 +5,8 @@ certifi==2025.11.12
 charset-normalizer==3.4.4
 click==8.3.1
 distro==1.9.0
-datasets>=3.0,<5
+# ModelScope MsDataset still passes verification_mode, removed by datasets 4.x.
+datasets>=3.0,<4
 addict>=2.4,<3
 et_xmlfile==2.0.0
 filelock==3.20.0

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+import pyarrow as pa
+import pyarrow.parquet as pq
 from PIL import Image
 
 from core.mm_main import apply_overrides
@@ -27,6 +31,7 @@ from core.multimodal.schema import (
 )
 from core.multimodal.scoring import select_with_evidence
 from evaluate.multimodal.metrics import anls, vqa_accuracy
+from scripts.prepare_multimodal_dataset import cached_modelscope_parquet_rows
 
 
 def candidate(name: str, answer: str, logprob: float = -0.2) -> Candidate:
@@ -58,6 +63,27 @@ class FakeVLM:
 
 
 class SchemaAndDatasetTests(unittest.TestCase):
+    def test_modelscope_cache_fallback_uses_url_provenance(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            downloads = root / "hub" / "datasets" / "downloads"
+            downloads.mkdir(parents=True)
+            shard = downloads / "contenthash"
+            pq.write_table(pa.Table.from_pylist([{"pid": "7", "question": "Q?"}]), shard)
+            (downloads / "contenthash.json").write_text(
+                json.dumps(
+                    {
+                        "url": "https://modelscope.cn/api/v1/datasets/evalscope/MathVista/repo?"
+                        "Revision=master&FilePath=data%2Ftestmini-00000.parquet"
+                    }
+                ),
+                encoding="utf-8",
+            )
+            with patch.dict(os.environ, {"MODELSCOPE_CACHE": str(root)}):
+                rows, urls = cached_modelscope_parquet_rows("evalscope/MathVista", "testmini")
+                self.assertEqual(list(rows)[0]["pid"], "7")
+                self.assertEqual(len(urls), 1)
+
     def test_dotted_config_overrides_are_typed(self):
         config = {"experiment": {"limit": 20}, "model": {"request_logprobs": True}}
         updated = apply_overrides(

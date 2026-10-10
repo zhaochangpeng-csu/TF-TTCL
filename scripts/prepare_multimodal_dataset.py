@@ -11,10 +11,82 @@ import argparse
 import hashlib
 import io
 import json
+import os
+import sys
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Iterable, Mapping, Sequence
+from urllib.parse import parse_qs, unquote, urlparse
 
 from PIL import Image
+
+
+def cached_modelscope_parquet_rows(dataset_id: str, split: str) -> tuple[Iterable[Mapping[str, Any]], list[str]]:
+    """Read parquet shards already fetched by ModelScope, bypassing MsDataset.
+
+    ModelScope 1.40's dataset adapter is incompatible with some recent
+    ``datasets`` releases. Its download cache records the source URL next to
+    every content-addressed file, so the fallback remains provenance-aware and
+    never guesses from a bare hash.
+    """
+    cache_root = Path(os.getenv("MODELSCOPE_CACHE", Path.home() / ".cache/modelscope"))
+    downloads = cache_root / "hub" / "datasets" / "downloads"
+    shards: list[Path] = []
+    source_urls: list[str] = []
+    expected_repo = f"/datasets/{dataset_id}/repo".lower()
+    for metadata_path in sorted(downloads.glob("*.json")):
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            url = str(metadata.get("url", ""))
+            parsed = urlparse(url)
+            file_path = unquote(parse_qs(parsed.query).get("FilePath", [""])[0])
+        except (OSError, ValueError, TypeError):
+            continue
+        if expected_repo not in parsed.path.lower():
+            continue
+        if split.lower() not in Path(file_path).name.lower() or not file_path.endswith(".parquet"):
+            continue
+        data_path = metadata_path.with_suffix("")
+        if data_path.is_file():
+            shards.append(data_path)
+            source_urls.append(url)
+    if not shards:
+        raise FileNotFoundError(
+            f"No cached ModelScope parquet shard found for {dataset_id!r} split {split!r} under {downloads}"
+        )
+
+    def rows() -> Iterable[Mapping[str, Any]]:
+        import pyarrow.parquet as pq
+
+        for shard in shards:
+            parquet = pq.ParquetFile(shard)
+            for batch in parquet.iter_batches(batch_size=64):
+                yield from batch.to_pylist()
+
+    return rows(), source_urls
+
+
+def load_modelscope_rows(
+    dataset_id: str,
+    split: str,
+    revision: str,
+    subset: str | None,
+    cached_only: bool,
+) -> tuple[Iterable[Mapping[str, Any]], str, list[str]]:
+    if not cached_only:
+        try:
+            from modelscope.msdatasets import MsDataset
+
+            load_kwargs = {"dataset_name": dataset_id, "split": split, "version": revision}
+            if subset:
+                load_kwargs["subset_name"] = subset
+            return MsDataset.load(**load_kwargs), "modelscope_msdataset", []
+        except Exception as exc:  # compatibility failures occur after the shard is cached
+            print(
+                f"MsDataset failed ({type(exc).__name__}: {exc}); trying its verified parquet cache.",
+                file=sys.stderr,
+            )
+    rows, urls = cached_modelscope_parquet_rows(dataset_id, split)
+    return rows, "modelscope_cached_parquet", urls
 
 
 def first(row: Mapping[str, Any], names: Sequence[str]) -> Any:
@@ -53,23 +125,16 @@ def main() -> None:
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--limit", type=int)
     parser.add_argument("--require-image", action="store_true")
+    parser.add_argument(
+        "--cached-only",
+        action="store_true",
+        help="Read ModelScope's provenance metadata and cached parquet without invoking MsDataset",
+    )
     args = parser.parse_args()
 
-    try:
-        from modelscope.msdatasets import MsDataset
-    except ImportError as exc:
-        missing = getattr(exc, "name", None) or str(exc)
-        raise SystemExit(
-            f"Cannot import ModelScope MsDataset because dependency {missing!r} is missing"
-        ) from exc
-
-    # ModelScope calls the dataset repository revision ``version``.  Passing
-    # ``revision`` leaks into Hugging Face's loader and collides with the
-    # revision already supplied by ModelScope.
-    load_kwargs = {"dataset_name": args.dataset_id, "split": args.split, "version": args.revision}
-    if args.subset:
-        load_kwargs["subset_name"] = args.subset
-    dataset = MsDataset.load(**load_kwargs)
+    dataset, source_backend, source_urls = load_modelscope_rows(
+        args.dataset_id, args.split, args.revision, args.subset, args.cached_only
+    )
 
     output_dir = Path(args.output_dir)
     images_dir = output_dir / "images"
@@ -114,6 +179,8 @@ def main() -> None:
         "subset": args.subset,
         "split": args.split,
         "revision": args.revision,
+        "source_backend": source_backend,
+        "source_urls": source_urls,
         "count": count,
         "jsonl": str(jsonl_path),
     }
