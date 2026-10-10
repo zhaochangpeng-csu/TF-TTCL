@@ -58,7 +58,10 @@ def main() -> None:
     try:
         from modelscope.msdatasets import MsDataset
     except ImportError as exc:
-        raise SystemExit("Install `datasets` in the ttt environment before using MsDataset") from exc
+        missing = getattr(exc, "name", None) or str(exc)
+        raise SystemExit(
+            f"Cannot import ModelScope MsDataset because dependency {missing!r} is missing"
+        ) from exc
 
     load_kwargs = {"dataset_name": args.dataset_id, "split": args.split, "revision": args.revision}
     if args.subset:

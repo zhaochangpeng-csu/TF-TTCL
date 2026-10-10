@@ -22,14 +22,48 @@ from core.multimodal.memory import EvidenceMemory
 from core.multimodal.runner import EviMemRunner
 
 
+def apply_overrides(config: dict, overrides: list[str]) -> dict:
+    """Apply dotted ``key=value`` overrides after parsing values as YAML.
+
+    Keeping overrides in the recorded configuration snapshot makes pilot runs
+    reproducible without multiplying near-identical configuration files.
+    """
+    for item in overrides:
+        if "=" not in item:
+            raise ValueError(f"Invalid override {item!r}; expected dotted.key=value")
+        dotted_key, raw_value = item.split("=", 1)
+        keys = [key for key in dotted_key.split(".") if key]
+        if not keys:
+            raise ValueError(f"Invalid override key in {item!r}")
+        target = config
+        for key in keys[:-1]:
+            current = target.get(key)
+            if current is None:
+                current = {}
+                target[key] = current
+            if not isinstance(current, dict):
+                raise ValueError(f"Cannot descend into non-mapping override key {key!r}")
+            target = current
+        target[keys[-1]] = yaml.safe_load(raw_value)
+    return config
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run frozen-VLM EviMem-TTCL")
     parser.add_argument("--config", required=True)
+    parser.add_argument(
+        "--override",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="Override a dotted config key; repeat for multiple values",
+    )
     parser.add_argument("--validate-config", action="store_true")
     args = parser.parse_args()
 
     config_path = Path(args.config)
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    config = apply_overrides(config, args.override)
     experiment = config["experiment"]
     model_config = config["model"]
     memory_config = config.get("memory", {})

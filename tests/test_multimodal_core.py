@@ -7,6 +7,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from core.mm_main import apply_overrides
 from core.multimodal.client import build_multimodal_content, parse_evidence_verdict
 from core.multimodal.answers import normalize_answer
 from core.multimodal.datasets import load_local_dataset
@@ -57,6 +58,16 @@ class FakeVLM:
 
 
 class SchemaAndDatasetTests(unittest.TestCase):
+    def test_dotted_config_overrides_are_typed(self):
+        config = {"experiment": {"limit": 20}, "model": {"request_logprobs": True}}
+        updated = apply_overrides(
+            config,
+            ["experiment.limit=2", "model.request_logprobs=false", "ablation.evidence=true"],
+        )
+        self.assertEqual(updated["experiment"]["limit"], 2)
+        self.assertFalse(updated["model"]["request_logprobs"])
+        self.assertTrue(updated["ablation"]["evidence"])
+
     def test_inference_sample_has_no_label_field(self):
         sample = MultimodalSample("1", "scienceqa_img", "Which?", (), ("yes", "no"))
         public = sample.to_public_dict()
