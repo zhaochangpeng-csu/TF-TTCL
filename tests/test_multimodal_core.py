@@ -185,6 +185,24 @@ class RunnerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "incompatible"):
                 incompatible.run([sample])
 
+    def test_non_resume_run_refuses_to_append_existing_results(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            image = root / "image.png"
+            Image.new("RGB", (8, 8), "red").save(image)
+            sample = MultimodalSample("q1", "scienceqa_img", "Which?", (str(image),))
+            first = EviMemRunner(
+                FakeVLM(), EvidenceMemory(HashMultimodalEmbedder()), root / "run",
+                method="zero_shot", resume=False, config_snapshot={"run": 1},
+            )
+            first.run([sample])
+            second = EviMemRunner(
+                FakeVLM(), EvidenceMemory(HashMultimodalEmbedder()), root / "run",
+                method="zero_shot", resume=False, config_snapshot={"run": 1},
+            )
+            with self.assertRaisesRegex(FileExistsError, "Refusing to append"):
+                second.run([sample])
+
 
 if __name__ == "__main__":
     unittest.main()

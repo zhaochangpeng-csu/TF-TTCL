@@ -442,6 +442,16 @@ class EviMemRunner:
         self.manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def run(self, samples: Sequence[MultimodalSample]) -> None:
+        existing_artifacts = [
+            path
+            for path in (self.predictions_path, self.memory_path, self.manifest_path)
+            if path.exists()
+        ]
+        if not self.resume and existing_artifacts:
+            raise FileExistsError(
+                "Refusing to append to an existing non-resume run: "
+                + ", ".join(str(path) for path in existing_artifacts)
+            )
         self._validate_resume_state()
         completed = self._load_completed()
         if self.resume and self.memory_path.exists():
