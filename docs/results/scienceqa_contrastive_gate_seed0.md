@@ -32,3 +32,31 @@ verbatim, rewrites only the final query clause, and rejects variants that alter
 protected numbers, logical operators, quoted terms, or proper names. No memory
 experiment proceeds until this corrected candidate stream passes a new paired
 selection gate.
+
+## Context-preserving rerun
+
+The corrected run used commit `4b2bcc9`. All 2,097 paired samples had identical
+candidate answers, question variants, and image hashes across the budget and
+evidence arms. Prompt and completion usage was also exactly matched at
+4,797,678 and 130,155 tokens per arm. All 6,291 augmented trajectories retained
+their source context verbatim; the deterministic semantic guard accepted 268
+changed variants and fell back to the original query for 6,023.
+
+| Method | Accuracy | 95% bootstrap CI |
+|---|---:|---:|
+| context-safe contrastive budget | 87.506% | [86.075%, 88.889%] |
+| context-safe contrastive evidence | 87.506% | [86.075%, 88.937%] |
+
+The paired delta is exactly 0.000 percentage points (95% CI [-0.334, 0.334],
+paired randomization p=1.0). Among 15 changed answers, seven improved, seven
+regressed, and one changed between wrong answers. Candidate disagreements fell
+from 237 to 110 and the oracle fell from 91.130% to 89.700%. The repair removed
+the spurious augmentation failures, raising `text_variant_1` from 84.692% to
+87.458%, but the selector still did not beat either its matched budget control
+or the 87.601% original greedy trajectory.
+
+This second gate also fails. Online memory remains disabled: the experiment
+provides no evidence that the current self-verifier can identify a sufficiently
+precise write set. Further work should replace paraphrase-driven diversity with
+an evidence-first candidate construction mechanism and establish selection
+precision before returning to memory experiments.
