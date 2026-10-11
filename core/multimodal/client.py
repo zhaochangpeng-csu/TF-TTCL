@@ -148,16 +148,27 @@ def parse_evidence_verdict(text: str) -> EvidenceVerdict:
 
 def parse_contrastive_verdict(text: str) -> ContrastiveEvidenceVerdict:
     allowed_statuses = {"entailed", "contradicted", "insufficient"}
-    allowed_winners = {"candidate_1", "candidate_2", "undecidable"}
+    winner_aliases = {
+        "response_x": "candidate_1",
+        "response_y": "candidate_2",
+        "candidate_1": "candidate_1",
+        "candidate_2": "candidate_2",
+        "undecidable": "undecidable",
+    }
     try:
         payload = parse_json_object(text)
-        winner = str(payload.get("winner", "undecidable")).strip().lower()
-        first = str(payload.get("candidate_1_status", "insufficient")).strip().lower()
-        second = str(payload.get("candidate_2_status", "insufficient")).strip().lower()
+        raw_winner = str(payload.get("winner", "undecidable")).strip().lower()
+        winner = winner_aliases.get(raw_winner, "undecidable")
+        first = str(
+            payload.get("response_x_status", payload.get("candidate_1_status", "insufficient"))
+        ).strip().lower()
+        second = str(
+            payload.get("response_y_status", payload.get("candidate_2_status", "insufficient"))
+        ).strip().lower()
         evidence_payload = payload.get("decisive_evidence", [])
         counterevidence_payload = payload.get("counterevidence", [])
         malformed = (
-            winner not in allowed_winners
+            raw_winner not in winner_aliases
             or first not in allowed_statuses
             or second not in allowed_statuses
             or not isinstance(evidence_payload, list)
@@ -174,7 +185,7 @@ def parse_contrastive_verdict(text: str) -> ContrastiveEvidenceVerdict:
             if str(item).strip()
         ] if isinstance(counterevidence_payload, list) else []
         return ContrastiveEvidenceVerdict(
-            winner=winner if winner in allowed_winners else "undecidable",  # type: ignore[arg-type]
+            winner=winner,  # type: ignore[arg-type]
             candidate_1_status=first if first in allowed_statuses else "insufficient",  # type: ignore[arg-type]
             candidate_2_status=second if second in allowed_statuses else "insufficient",  # type: ignore[arg-type]
             decisive_evidence=evidence,

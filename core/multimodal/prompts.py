@@ -18,15 +18,15 @@ Return JSON only with this schema:
 "evidence":"short visible evidence or reason"}],"rationale":"short summary"}."""
 
 CONTRASTIVE_VERIFY_SYSTEM = """You are a contrastive multimodal evidence
-adjudicator, not an answer generator. Compare exactly the two proposed answers
+adjudicator, not an answer generator. Compare exactly RESPONSE_X and RESPONSE_Y
 against the supplied image, question, context, and options. Treat an absent
 visual fact as insufficient rather than inventing it. Ignore how frequently an
-answer was proposed and do not favor candidate position. Choose a candidate
+answer was proposed and do not favor response position. Choose a response
 only when the available evidence entails it and contradicts or leaves the
 other candidate insufficient; otherwise choose undecidable. Return JSON only:
-{"winner":"candidate_1|candidate_2|undecidable",
-"candidate_1_status":"entailed|contradicted|insufficient",
-"candidate_2_status":"entailed|contradicted|insufficient",
+{"winner":"response_x|response_y|undecidable",
+"response_x_status":"entailed|contradicted|insufficient",
+"response_y_status":"entailed|contradicted|insufficient",
 "decisive_evidence":["short image or question evidence"],
 "counterevidence":["short contradiction or missing-evidence statement"],
 "rationale":"short comparison"}. Include every key. If exactly one candidate

@@ -359,6 +359,14 @@ class EviMemRunner:
         second_answer = groups[1][0]
         answer_metadata = {**sample.metadata, "choices": list(sample.choices)}
         question = format_question(sample.question, list(sample.choices), answer_metadata)
+
+        def display_answer(answer: str) -> str:
+            if len(answer) == 1 and "a" <= answer <= "z":
+                choice_index = ord(answer) - ord("a")
+                if choice_index < len(sample.choices):
+                    return f"option {answer.upper()} — {sample.choices[choice_index]}"
+            return answer
+
         views = [
             ("original", sample.image_paths, first_answer, second_answer),
             (
@@ -375,8 +383,8 @@ class EviMemRunner:
         for offset, (view, images, candidate_1, candidate_2) in enumerate(views):
             prompt = (
                 f"Question and options:\n{question}\n\n"
-                f"Candidate 1 proposed answer: {candidate_1}\n"
-                f"Candidate 2 proposed answer: {candidate_2}"
+                f"RESPONSE_X proposed answer: {display_answer(candidate_1)}\n"
+                f"RESPONSE_Y proposed answer: {display_answer(candidate_2)}"
             )
             response = self._generate(
                 CONTRASTIVE_VERIFY_SYSTEM,

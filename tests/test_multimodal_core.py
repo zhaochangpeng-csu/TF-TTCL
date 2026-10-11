@@ -373,13 +373,13 @@ class RunnerTests(unittest.TestCase):
             def generate(self, system_prompt, user_text, image_paths, sampling):
                 if "contrastive multimodal evidence" not in system_prompt:
                     return super().generate(system_prompt, user_text, image_paths, sampling)
-                winner = "candidate_2" if "Candidate 1 proposed answer: a" in user_text else "candidate_1"
-                first = "contradicted" if winner == "candidate_2" else "entailed"
-                second = "entailed" if winner == "candidate_2" else "contradicted"
+                winner = "response_y" if "RESPONSE_X proposed answer: option A" in user_text else "response_x"
+                first = "contradicted" if winner == "response_y" else "entailed"
+                second = "entailed" if winner == "response_y" else "contradicted"
                 content = json.dumps({
                     "winner": winner,
-                    "candidate_1_status": first,
-                    "candidate_2_status": second,
+                    "response_x_status": first,
+                    "response_y_status": second,
                     "decisive_evidence": ["visible feature"],
                     "counterevidence": ["other answer conflicts"],
                     "rationale": "same winner after swapping positions",
@@ -412,11 +412,11 @@ class RunnerTests(unittest.TestCase):
             def generate(self, system_prompt, user_text, image_paths, sampling):
                 if "contrastive multimodal evidence" not in system_prompt:
                     return super().generate(system_prompt, user_text, image_paths, sampling)
-                first_is_a = "Candidate 1 proposed answer: a" in user_text
+                first_is_a = "RESPONSE_X proposed answer: option A" in user_text
                 content = json.dumps({
                     "winner": "undecidable",
-                    "candidate_1_status": "insufficient" if first_is_a else "entailed",
-                    "candidate_2_status": "entailed" if first_is_a else "insufficient",
+                    "response_x_status": "insufficient" if first_is_a else "entailed",
+                    "response_y_status": "entailed" if first_is_a else "insufficient",
                     "decisive_evidence": ["visible feature"],
                     "counterevidence": ["alternative lacks support"],
                     "rationale": "one answer is supported in both orders",
