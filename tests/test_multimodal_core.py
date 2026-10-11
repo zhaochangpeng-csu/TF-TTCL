@@ -63,7 +63,7 @@ class FakeVLM:
     model_name = "fake-vlm"
 
     def generate(self, system_prompt, user_text, image_paths, sampling):
-        if "Rewrite a visual question" in system_prompt:
+        if "Rewrite only the supplied question clause" in system_prompt:
             content = '{"questions":["Rephrased one?","Rephrased two?"]}'
         elif "evidence verifier" in system_prompt:
             content = '{"answer_status":"entailed","claims":[{"text":"x","status":"entailed","evidence":"pixel"}],"rationale":"visible"}'
