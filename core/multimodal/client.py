@@ -151,9 +151,9 @@ def parse_contrastive_verdict(text: str) -> ContrastiveEvidenceVerdict:
     allowed_winners = {"candidate_1", "candidate_2", "undecidable"}
     try:
         payload = parse_json_object(text)
-        winner = str(payload.get("winner", "undecidable")).lower()
-        first = str(payload.get("candidate_1_status", "insufficient")).lower()
-        second = str(payload.get("candidate_2_status", "insufficient")).lower()
+        winner = str(payload.get("winner", "undecidable")).strip().lower()
+        first = str(payload.get("candidate_1_status", "insufficient")).strip().lower()
+        second = str(payload.get("candidate_2_status", "insufficient")).strip().lower()
         evidence_payload = payload.get("decisive_evidence", [])
         counterevidence_payload = payload.get("counterevidence", [])
         malformed = (

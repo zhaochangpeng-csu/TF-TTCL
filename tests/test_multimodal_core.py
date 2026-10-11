@@ -407,6 +407,46 @@ class RunnerTests(unittest.TestCase):
             self.assertTrue(decision.eligible_for_memory)
             self.assertEqual(len(records), 2)
 
+    def test_contrastive_selection_does_not_require_negative_memory_gate(self):
+        class InsufficientNegativeFake(FakeVLM):
+            def generate(self, system_prompt, user_text, image_paths, sampling):
+                if "contrastive multimodal evidence" not in system_prompt:
+                    return super().generate(system_prompt, user_text, image_paths, sampling)
+                first_is_a = "Candidate 1 proposed answer: a" in user_text
+                content = json.dumps({
+                    "winner": "undecidable",
+                    "candidate_1_status": "insufficient" if first_is_a else "entailed",
+                    "candidate_2_status": "entailed" if first_is_a else "insufficient",
+                    "decisive_evidence": ["visible feature"],
+                    "counterevidence": ["alternative lacks support"],
+                    "rationale": "one answer is supported in both orders",
+                })
+                return GenerationResponse(content, 10, 3, [], 0.01)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            image = root / "image.png"
+            Image.new("RGB", (8, 8), "red").save(image)
+            sample = MultimodalSample(
+                "q1", "scienceqa_img", "Which?", (str(image),), ("red", "blue")
+            )
+            runner = EviMemRunner(
+                InsufficientNegativeFake(),
+                EvidenceMemory(HashMultimodalEmbedder()),
+                root / "run",
+                method="contrastive_evidence",
+            )
+            candidates = [candidate(f"a{i}", "A") for i in range(4)] + [
+                candidate("b1", "B"), candidate("b2", "B")
+            ]
+            decision, records = runner._contrastive_adjudication(
+                sample, candidates, 0, (str(image),)
+            )
+            self.assertEqual(decision.answer, "b")
+            self.assertFalse(decision.eligible_for_memory)
+            self.assertIn("memory=rejected_no_contradiction", decision.reason)
+            self.assertTrue(all(record["raw_response"] for record in records))
+
     def test_memory_intervention_keeps_three_clean_anchor_trajectories(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

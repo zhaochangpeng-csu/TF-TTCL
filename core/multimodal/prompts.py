@@ -29,7 +29,10 @@ other candidate insufficient; otherwise choose undecidable. Return JSON only:
 "candidate_2_status":"entailed|contradicted|insufficient",
 "decisive_evidence":["short image or question evidence"],
 "counterevidence":["short contradiction or missing-evidence statement"],
-"rationale":"short comparison"}."""
+"rationale":"short comparison"}. Include every key. If exactly one candidate
+is entailed and the other is contradicted or insufficient, winner MUST name the
+entailed candidate. decisive_evidence and counterevidence MUST be JSON arrays,
+even when empty."""
 
 DISTILL_SYSTEM = """Distill reusable reasoning guidance from a contrastive
 visual QA experience. Never state that the proposed answer is ground truth.

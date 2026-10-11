@@ -355,8 +355,8 @@ class EviMemRunner:
             return majority, []
 
         groups.sort(key=lambda item: (-len(item[1]), candidates.index(item[1][0])))
-        first_answer, first_members = groups[0]
-        second_answer, second_members = groups[1]
+        first_answer = groups[0][0]
+        second_answer = groups[1][0]
         answer_metadata = {**sample.metadata, "choices": list(sample.choices)}
         question = format_question(sample.question, list(sample.choices), answer_metadata)
         views = [
@@ -389,29 +389,30 @@ class EviMemRunner:
                 "candidate_1": candidate_1,
                 "candidate_2": candidate_2,
             }
-            winner_status = (
-                verdict.candidate_1_status
-                if verdict.winner == "candidate_1"
-                else verdict.candidate_2_status
-                if verdict.winner == "candidate_2"
-                else "insufficient"
+            statuses = {
+                "candidate_1": verdict.candidate_1_status,
+                "candidate_2": verdict.candidate_2_status,
+            }
+            entailed_slots = [slot for slot, status in statuses.items() if status == "entailed"]
+            status_winner = entailed_slots[0] if len(entailed_slots) == 1 else None
+            loser_slot = (
+                "candidate_2" if status_winner == "candidate_1" else "candidate_1"
+                if status_winner == "candidate_2" else None
             )
-            loser_status = (
-                verdict.candidate_2_status
-                if verdict.winner == "candidate_1"
-                else verdict.candidate_1_status
-                if verdict.winner == "candidate_2"
-                else "insufficient"
-            )
+            loser_status = statuses.get(loser_slot, "insufficient")
+            declared_winner_compatible = verdict.winner in {
+                status_winner,
+                "undecidable",
+            }
             view_valid = (
                 not verdict.parse_error
-                and verdict.winner in slot_to_answer
-                and winner_status == "entailed"
+                and status_winner in slot_to_answer
+                and declared_winner_compatible
                 and loser_status in {"contradicted", "insufficient"}
                 and bool(verdict.decisive_evidence)
             )
             if view_valid:
-                resolved.append(slot_to_answer[verdict.winner])
+                resolved.append(slot_to_answer[status_winner])
                 loser_contradicted = loser_contradicted or loser_status == "contradicted"
             else:
                 valid_views = False
@@ -420,8 +421,10 @@ class EviMemRunner:
                     "view": view,
                     "candidate_1": candidate_1,
                     "candidate_2": candidate_2,
+                    "raw_response": response.content,
                     "verdict": asdict(verdict),
-                    "resolved_answer": slot_to_answer.get(verdict.winner),
+                    "status_winner": status_winner,
+                    "resolved_answer": slot_to_answer.get(status_winner),
                     "valid": view_valid,
                 }
             )
@@ -430,7 +433,6 @@ class EviMemRunner:
             valid_views
             and len(resolved) == 2
             and resolved[0] == resolved[1]
-            and loser_contradicted
         )
         if not stable:
             majority.eligible_for_memory = False
@@ -448,11 +450,14 @@ class EviMemRunner:
                 representative=winner_group[1][0],
                 scores=ComponentScores(support, 1.0, 1.0),
                 borda_score=2.0,
-                component_wins=3,
-                eligible_for_memory=True,
+                component_wins=3 if loser_contradicted else 2,
+                eligible_for_memory=loser_contradicted,
                 negative_answer=loser_answer,
                 negative_representative=loser_group[1][0],
-                reason="contrastive=stable_two_view; evidence_gate=True; memory=accepted",
+                reason=(
+                    "contrastive=stable_two_view; evidence_gate=True; "
+                    + ("memory=accepted" if loser_contradicted else "memory=rejected_no_contradiction")
+                ),
             ),
             records,
         )
