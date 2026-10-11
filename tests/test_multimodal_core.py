@@ -523,6 +523,7 @@ class RunnerTests(unittest.TestCase):
             self.assertEqual(record["answer"], "a")
             self.assertNotIn("target", record)
             self.assertNotIn("label", record)
+            self.assertTrue(record["candidate_answers"][0]["image_hashes"])
             self.assertEqual(record["memory_size_before"], 0)
             self.assertEqual(record["memory_size_after"], 1)
 

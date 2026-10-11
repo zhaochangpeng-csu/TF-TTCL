@@ -858,6 +858,7 @@ class EviMemRunner:
                         "answer": item.normalized_answer,
                         "question_variant": item.question_variant,
                         "image_paths": list(item.image_paths),
+                        "image_hashes": [sha256_file(path) for path in item.image_paths],
                         "memory_conditioned": item.memory_conditioned,
                     }
                     for item in candidates
