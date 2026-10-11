@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import subprocess
 import time
 import uuid
@@ -56,6 +57,78 @@ METHODS = {
     "evidence_only",
     "evimem",
 }
+
+_QUESTION_MARKER = "\n\nQuestion:\n"
+_LOGIC_TOKENS = {
+    "after",
+    "before",
+    "different",
+    "except",
+    "false",
+    "least",
+    "less",
+    "more",
+    "most",
+    "never",
+    "no",
+    "not",
+    "same",
+    "true",
+    "without",
+}
+_QUESTION_STARTERS = {
+    "can",
+    "could",
+    "describe",
+    "does",
+    "how",
+    "is",
+    "what",
+    "when",
+    "where",
+    "which",
+    "who",
+    "why",
+    "would",
+}
+
+
+def _split_context_and_query(question: str) -> Tuple[str, str]:
+    """Keep benchmark context immutable while augmenting only the query clause."""
+    if _QUESTION_MARKER in question:
+        context, query = question.rsplit(_QUESTION_MARKER, 1)
+        return context + _QUESTION_MARKER, query
+    return "", question
+
+
+def _protected_query_features(text: str) -> Tuple[Tuple[str, ...], ...]:
+    normalized = text.strip()
+    words = re.findall(r"[A-Za-z]+", normalized.lower())
+    logic = tuple(sorted(word for word in words if word in _LOGIC_TOKENS))
+    numbers = tuple(sorted(re.findall(r"[-+]?\d+(?:\.\d+)?%?", normalized)))
+    quoted = tuple(
+        sorted(match[1].strip().lower() for match in re.findall(r"(['\"])(.+?)\1", normalized))
+    )
+    proper = []
+    for match in re.finditer(r"\b[A-Z][A-Za-z0-9'-]*\b", normalized):
+        if match.group(0).lower() in _QUESTION_STARTERS:
+            continue
+        proper.append(match.group(0).lower())
+    return numbers, logic, quoted, tuple(sorted(proper))
+
+
+def _semantic_variant_is_safe(original: str, variant: str) -> bool:
+    cleaned = variant.strip()
+    if not cleaned or "final answer" in cleaned.lower():
+        return False
+    if len(cleaned) < max(4, int(0.35 * len(original.strip()))):
+        return False
+    original_features = _protected_query_features(original)
+    variant_features = _protected_query_features(cleaned)
+    if original_features[:3] != variant_features[:3]:
+        return False
+    variant_words = set(re.findall(r"[A-Za-z0-9'-]+", cleaned.lower()))
+    return all(name in variant_words for name in original_features[3])
 
 
 def _stable_json(value: Any) -> str:
@@ -198,20 +271,29 @@ class EviMemRunner:
         return response
 
     def _paraphrases(self, question: str, sample_index: int) -> List[str]:
+        context, query = _split_context_and_query(question)
         response = self._generate(
             PARAPHRASE_SYSTEM,
-            question,
+            query,
             (),
             self._sampling(0.0, sample_index * 100 + 1, max_tokens=256),
         )
         try:
             payload = parse_json_object(response.content)
-            variants = [str(item).strip() for item in payload.get("questions", []) if str(item).strip()]
+            proposed = [
+                str(item).strip()
+                for item in payload.get("questions", [])
+                if str(item).strip()
+            ]
         except (ValueError, TypeError, json.JSONDecodeError):
-            variants = []
+            proposed = []
+        variants = [
+            item if _semantic_variant_is_safe(query, item) else query
+            for item in proposed[:2]
+        ]
         while len(variants) < 2:
-            variants.append(question)
-        return variants[:2]
+            variants.append(query)
+        return [context + item for item in variants[:2]]
 
     def _candidate(
         self,
@@ -774,6 +856,8 @@ class EviMemRunner:
                     {
                         "trajectory": item.trajectory,
                         "answer": item.normalized_answer,
+                        "question_variant": item.question_variant,
+                        "image_paths": list(item.image_paths),
                         "memory_conditioned": item.memory_conditioned,
                     }
                     for item in candidates

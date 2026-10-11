@@ -23,7 +23,7 @@ from core.multimodal.datasets import load_local_dataset
 from core.multimodal.embeddings import HashMultimodalEmbedder
 from core.multimodal.image_ops import make_blank_views, make_fidelity_views
 from core.multimodal.memory import EvidenceMemory
-from core.multimodal.runner import EviMemRunner
+from core.multimodal.runner import EviMemRunner, _semantic_variant_is_safe
 from core.multimodal.schema import (
     Candidate,
     ComponentScores,
@@ -368,6 +368,49 @@ class MetricsTests(unittest.TestCase):
 
 
 class RunnerTests(unittest.TestCase):
+    def test_semantic_augmentation_preserves_context_verbatim(self):
+        with tempfile.TemporaryDirectory() as directory:
+            runner = EviMemRunner(
+                FakeVLM(),
+                EvidenceMemory(HashMultimodalEmbedder()),
+                Path(directory) / "run",
+            )
+            source = "Context:\nA fact and a hint.\n\nQuestion:\nWhich option?"
+            variants = runner._paraphrases(source, 0)
+            self.assertEqual(
+                variants,
+                [
+                    "Context:\nA fact and a hint.\n\nQuestion:\nRephrased one?",
+                    "Context:\nA fact and a hint.\n\nQuestion:\nRephrased two?",
+                ],
+            )
+
+    def test_semantic_augmentation_guard_rejects_logic_changes(self):
+        self.assertTrue(
+            _semantic_variant_is_safe(
+                "Is Mars more than 3 times larger?",
+                "Is Mars more than 3 times as large?",
+            )
+        )
+        self.assertFalse(
+            _semantic_variant_is_safe(
+                "Is Mars more than 3 times larger?",
+                "Is Mars less than 4 times larger?",
+            )
+        )
+        self.assertFalse(
+            _semantic_variant_is_safe(
+                "Which animal is not nocturnal?",
+                "Which animal is nocturnal?",
+            )
+        )
+        self.assertFalse(
+            _semantic_variant_is_safe(
+                "Jupiter is larger than Mars. Which is larger?",
+                "Which planet is larger?",
+            )
+        )
+
     def test_contrastive_adjudication_is_position_invariant(self):
         class ContrastiveFake(FakeVLM):
             def generate(self, system_prompt, user_text, image_paths, sampling):

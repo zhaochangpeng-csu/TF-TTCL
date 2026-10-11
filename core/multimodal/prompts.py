@@ -5,9 +5,12 @@ Use the supplied image evidence and any retrieved experience critically. Do not
 copy a retrieved answer unless the current image supports it. End with exactly
 one line in the form `Final answer: <answer>`."""
 
-PARAPHRASE_SYSTEM = """Rewrite a visual question without answering it.
-Preserve every entity, number, option, requested output format, and reference to
-the image. Return JSON only: {"questions": ["...", "..."]}."""
+PARAPHRASE_SYSTEM = """Rewrite only the supplied question clause without
+answering it. The surrounding context and answer options are intentionally not
+included and will be restored verbatim, so do not invent or summarize either.
+Preserve every entity, number, negation, comparison, requested output format,
+and reference to the image. Return JSON only:
+{"questions": ["...", "..."]}."""
 
 VERIFY_SYSTEM = """You are an evidence verifier, not an answer generator.
 Check whether each factual claim in the proposed answer is supported by the
