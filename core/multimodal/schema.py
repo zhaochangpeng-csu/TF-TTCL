@@ -135,6 +135,25 @@ class EvidenceCertificateVerdict:
     parse_error: bool = False
 
 
+@dataclass
+class QuestionGridProposal:
+    """Answer-blind evidence region proposal on a fixed grid."""
+
+    cells: List[str] = field(default_factory=list)
+    parse_error: bool = False
+
+
+@dataclass
+class CandidateGridProposal:
+    """Candidate-conditional evidence regions on a fixed grid."""
+
+    candidate_1_cells: List[str] = field(default_factory=list)
+    candidate_2_cells: List[str] = field(default_factory=list)
+    candidate_1_fact: str = ""
+    candidate_2_fact: str = ""
+    parse_error: bool = False
+
+
 @dataclass(frozen=True)
 class ComponentScores:
     invariance: float

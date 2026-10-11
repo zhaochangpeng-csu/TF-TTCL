@@ -17,7 +17,9 @@ from .schema import (
     EvidenceCertificateVerdict,
     EvidenceClaim,
     EvidenceVerdict,
+    CandidateGridProposal,
     GenerationResponse,
+    QuestionGridProposal,
     SamplingConfig,
 )
 
@@ -298,3 +300,66 @@ def parse_evidence_certificate(text: str) -> EvidenceCertificateVerdict:
             rationale=text[:500],
             parse_error=True,
         )
+
+
+def _parse_grid_cells(payload: Mapping[str, Any], key: str) -> tuple[List[str], bool]:
+    valid_cells = {
+        f"r{row}c{column}"
+        for row in range(1, 5)
+        for column in range(1, 5)
+    }
+    raw = payload.get(key)
+    if not isinstance(raw, list):
+        return [], True
+    normalized = [str(item).strip().lower() for item in raw]
+    malformed = (
+        not 1 <= len(normalized) <= 4
+        or len(set(normalized)) != len(normalized)
+        or any(item not in valid_cells for item in normalized)
+    )
+    return sorted(set(item for item in normalized if item in valid_cells)), malformed
+
+
+def parse_question_grounding(text: str) -> QuestionGridProposal:
+    """Parse an answer-blind question-region proposal."""
+    try:
+        payload = parse_json_object(text)
+        cells, malformed = _parse_grid_cells(payload, "question_cells")
+        return QuestionGridProposal(
+            cells=cells,
+            parse_error=malformed or set(payload) != {"question_cells"},
+        )
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return QuestionGridProposal(parse_error=True)
+
+
+def parse_candidate_grounding(text: str) -> CandidateGridProposal:
+    """Parse candidate-conditional regions and fail closed on invalid cells."""
+    required = {
+        "response_x_cells",
+        "response_y_cells",
+        "response_x_fact",
+        "response_y_fact",
+    }
+    try:
+        payload = parse_json_object(text)
+        first_cells, first_error = _parse_grid_cells(payload, "response_x_cells")
+        second_cells, second_error = _parse_grid_cells(payload, "response_y_cells")
+        first_fact = str(payload.get("response_x_fact", "")).strip()
+        second_fact = str(payload.get("response_y_fact", "")).strip()
+        malformed = (
+            set(payload) != required
+            or first_error
+            or second_error
+            or not first_fact
+            or not second_fact
+        )
+        return CandidateGridProposal(
+            candidate_1_cells=first_cells,
+            candidate_2_cells=second_cells,
+            candidate_1_fact=first_fact,
+            candidate_2_fact=second_fact,
+            parse_error=malformed,
+        )
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return CandidateGridProposal(parse_error=True)

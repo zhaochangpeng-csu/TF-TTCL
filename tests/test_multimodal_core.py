@@ -18,11 +18,17 @@ from core.multimodal.client import (
     parse_contrastive_verdict,
     parse_evidence_certificate,
     parse_evidence_verdict,
+    parse_candidate_grounding,
+    parse_question_grounding,
 )
 from core.multimodal.answers import normalize_answer
 from core.multimodal.datasets import load_local_dataset
 from core.multimodal.embeddings import HashMultimodalEmbedder
-from core.multimodal.image_ops import make_blank_views, make_fidelity_views
+from core.multimodal.image_ops import (
+    make_blank_views,
+    make_fidelity_views,
+    make_grid_intervention_views,
+)
 from core.multimodal.memory import EvidenceMemory
 from core.multimodal.runner import EviMemRunner, _semantic_variant_is_safe
 from core.multimodal.schema import (
@@ -45,6 +51,7 @@ from evaluate.multimodal.metrics import (
     vqa_accuracy,
 )
 from evaluate.multimodal.candidate_oracle import summarize_candidate_oracle
+from evaluate.multimodal.audit_causal import call_trace
 from scripts.prepare_multimodal_dataset import cached_modelscope_parquet_rows
 from scripts.prepare_scienceqa import convert_modelscope_scienceqa_export, convert_scienceqa
 from scripts.create_label_isolated_subset import create_subset
@@ -215,6 +222,15 @@ class SchemaAndDatasetTests(unittest.TestCase):
                 count=4,
                 seed=7,
             )
+            held_out = create_subset(
+                source,
+                root / "held.inference.jsonl",
+                root / "held.labels.jsonl",
+                root / "held.manifest.json",
+                count=4,
+                seed=7,
+                offset=4,
+            )
             inference_rows = [
                 json.loads(line)
                 for line in (root / "first.inference.jsonl").read_text().splitlines()
@@ -224,6 +240,7 @@ class SchemaAndDatasetTests(unittest.TestCase):
                 for line in (root / "first.labels.jsonl").read_text().splitlines()
             ]
             self.assertEqual(first["selected_ids"], second["selected_ids"])
+            self.assertTrue(set(first["selected_ids"]).isdisjoint(held_out["selected_ids"]))
             self.assertTrue(all("answer" not in row for row in inference_rows))
             self.assertTrue(all("answer" in row for row in label_rows))
 
@@ -334,6 +351,30 @@ class EvidenceScoringTests(unittest.TestCase):
         }))
         self.assertTrue(missing_atom.parse_error)
 
+    def test_grid_grounding_parser_fails_closed(self):
+        question = parse_question_grounding('{"question_cells":["r1c1"]}')
+        self.assertFalse(question.parse_error)
+        self.assertEqual(question.cells, ["r1c1"])
+        leaked = parse_question_grounding(
+            '{"question_cells":["r1c1"],"winner":"response_x"}'
+        )
+        self.assertTrue(leaked.parse_error)
+        valid = parse_candidate_grounding(json.dumps({
+            "response_x_cells": ["r4c4"],
+            "response_y_cells": ["r1c1", "r1c2"],
+            "response_x_fact": "lower-right mark",
+            "response_y_fact": "upper-left mark",
+        }))
+        self.assertFalse(valid.parse_error)
+        self.assertEqual(valid.candidate_2_cells, ["r1c1", "r1c2"])
+        invalid = parse_candidate_grounding(json.dumps({
+            "response_x_cells": [],
+            "response_y_cells": ["r1c1"],
+            "response_x_fact": "x",
+            "response_y_fact": "y",
+        }))
+        self.assertTrue(invalid.parse_error)
+
 
 class MemoryTests(unittest.TestCase):
     def _experience(self, index: int, image: str) -> Experience:
@@ -395,8 +436,60 @@ class ImageAndClientTests(unittest.TestCase):
             content = build_multimodal_content("question", [fidelity])
             self.assertTrue(content[0]["image_url"]["url"].startswith("data:image/png;base64,"))
 
+    def test_grid_interventions_preserve_shape_and_are_local(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source.png"
+            image = Image.new("RGB", (8, 8), "blue")
+            image.putpixel((0, 0), (255, 0, 0))
+            image.save(source)
+            focus_paths, drop_paths = make_grid_intervention_views(
+                [str(source)], ["r1c1"], root / "cache", "q1", "candidate"
+            )
+            with Image.open(focus_paths[0]) as focus, Image.open(drop_paths[0]) as drop:
+                self.assertEqual(focus.size, (8, 8))
+                self.assertEqual(drop.size, (8, 8))
+                self.assertEqual(focus.getpixel((0, 0)), (255, 0, 0))
+                self.assertNotEqual(focus.getpixel((7, 7)), (0, 0, 255))
+                self.assertNotEqual(drop.getpixel((0, 0)), (255, 0, 0))
+                self.assertEqual(drop.getpixel((7, 7)), (0, 0, 255))
+
 
 class MetricsTests(unittest.TestCase):
+    def test_causal_call_trace_captures_adaptive_outputs(self):
+        row = {
+            "candidate_answers": [
+                {
+                    "trajectory": "original_greedy",
+                    "answer": "a",
+                    "question_variant": "q",
+                    "image_hashes": ["original"],
+                }
+            ],
+            "causal_certificate": {
+                "localizations": [
+                    {
+                        "kind": "question_only",
+                        "view": "original_question_only",
+                        "image_hashes": ["original"],
+                        "proposal": {"cells": ["r1c1"], "parse_error": False},
+                    }
+                ],
+                "interventions": [
+                    {
+                        "view": "alternative_focus",
+                        "expected_answer": "b",
+                        "observed_answer": "b",
+                        "image_hashes": ["focus"],
+                    }
+                ],
+            },
+        }
+        trace = call_trace(row)
+        changed = json.loads(json.dumps(row))
+        changed["causal_certificate"]["interventions"][0]["observed_answer"] = "a"
+        self.assertNotEqual(trace, call_trace(changed))
+
     def test_candidate_oracle_separates_generation_and_selection_errors(self):
         targets = {
             "q1": EvaluationTarget("q1", ("B", "blue"), {}),
@@ -485,6 +578,107 @@ class MetricsTests(unittest.TestCase):
 
 
 class RunnerTests(unittest.TestCase):
+    def test_causal_certificate_requires_separated_regions_and_full_crossover(self):
+        class CausalFake(FakeVLM):
+            def __init__(self, overlap=False):
+                self.overlap = overlap
+                self.intervention_calls = 0
+
+            def generate(self, system_prompt, user_text, image_paths, sampling):
+                if "question evidence-region proposer" in system_prompt:
+                    if "RESPONSE_X" in user_text or "Options:" in user_text:
+                        raise AssertionError("Question-only localization leaked candidates")
+                    return GenerationResponse(
+                        '{"question_cells":["r1c1"]}', 13, 4, [], 0.01
+                    )
+                if "candidate evidence-region proposer" in system_prompt:
+                    first_is_a = "RESPONSE_X proposed answer: option A" in user_text
+                    a_cells = ["r1c1"] if self.overlap else ["r4c4"]
+                    x_cells = a_cells if first_is_a else ["r1c1"]
+                    y_cells = ["r1c1"] if first_is_a else a_cells
+                    payload = {
+                        "response_x_cells": x_cells,
+                        "response_y_cells": y_cells,
+                        "response_x_fact": "visible fact for X",
+                        "response_y_fact": "visible fact for Y",
+                    }
+                    return GenerationResponse(json.dumps(payload), 13, 4, [], 0.01)
+                offset = sampling.seed % 100 if sampling.seed is not None else -1
+                intervention_answers = {82: "B", 83: "A", 84: "A", 85: "B"}
+                if offset in intervention_answers:
+                    self.intervention_calls += 1
+                    return GenerationResponse(
+                        f"Final answer: {intervention_answers[offset]}",
+                        13,
+                        4,
+                        [],
+                        0.01,
+                    )
+                if (
+                    "Rewrite only the supplied question clause" not in system_prompt
+                    and sampling.temperature > 0
+                ):
+                    return GenerationResponse("Final answer: B", 13, 4, [], 0.01)
+                return super().generate(system_prompt, user_text, image_paths, sampling)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            image = root / "image.png"
+            Image.new("RGB", (16, 16), "blue").save(image)
+            sample = MultimodalSample(
+                "q1",
+                "scienceqa_img",
+                "Which option?",
+                (str(image),),
+                ("red", "blue"),
+                {"question_type": "multi_choice"},
+            )
+            budget_model = CausalFake()
+            evidence_model = CausalFake()
+            budget = EviMemRunner(
+                budget_model,
+                EvidenceMemory(HashMultimodalEmbedder()),
+                root / "budget",
+                method="causal_budget",
+                resume=False,
+            )
+            evidence = EviMemRunner(
+                evidence_model,
+                EvidenceMemory(HashMultimodalEmbedder()),
+                root / "evidence",
+                method="causal_evidence",
+                resume=False,
+            )
+            budget.run([sample])
+            evidence.run([sample])
+            budget_row = json.loads((root / "budget/predictions.jsonl").read_text())
+            evidence_row = json.loads((root / "evidence/predictions.jsonl").read_text())
+            self.assertEqual(budget_row["answer"], "a")
+            self.assertEqual(evidence_row["answer"], "b")
+            self.assertTrue(evidence_row["causal_certificate"]["gate_passed"])
+            self.assertTrue(evidence_row["causal_certificate"]["causal_crossover"])
+            self.assertEqual(budget_model.intervention_calls, 4)
+            self.assertEqual(evidence_model.intervention_calls, 4)
+            self.assertEqual(budget.total_prompt_tokens, evidence.total_prompt_tokens)
+            self.assertEqual(budget.total_completion_tokens, evidence.total_completion_tokens)
+
+            overlap_model = CausalFake(overlap=True)
+            overlap = EviMemRunner(
+                overlap_model,
+                EvidenceMemory(HashMultimodalEmbedder()),
+                root / "overlap",
+                method="causal_evidence",
+                resume=False,
+            )
+            overlap.run([sample])
+            overlap_row = json.loads((root / "overlap/predictions.jsonl").read_text())
+            self.assertEqual(overlap_row["answer"], "a")
+            self.assertEqual(
+                overlap_row["causal_certificate"]["fallback_reason"],
+                "overlapping_candidate_regions",
+            )
+            self.assertEqual(overlap_model.intervention_calls, 0)
+
     def test_certificate_budget_matches_calls_and_evidence_changes_only_with_drop(self):
         class CertificateFake(FakeVLM):
             def __init__(self, blank_supports_winner=False):

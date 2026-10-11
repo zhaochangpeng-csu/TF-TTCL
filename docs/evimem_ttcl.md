@@ -108,7 +108,7 @@ python core/mm_main.py --config core/config/mm_qwen25vl.yaml
 Supported methods are `zero_shot`, `cot`, `self_consistency`,
 `budget_matched`, `contrastive_budget`, `contrastive_evidence`,
 `certificate_budget`, `certificate_evidence`, `direct_ttcl`, `evidence_only`,
-and `evimem`. `contrastive_evidence` invokes a position-swapped
+`causal_budget`, `causal_evidence`, and `evimem`. `contrastive_evidence` invokes a position-swapped
 two-view adjudicator only when candidate answers disagree; it falls back to
 majority voting unless both views identify the same uniquely entailed answer.
 This can change the selected answer, but the result is eligible for memory only
@@ -123,6 +123,12 @@ the greedy answer only when both views identify the same uniquely entailed,
 visually grounded answer and that answer loses support on every available blank
 or historical mismatched-image probe. `certificate_budget` performs the same
 calls but always returns the original greedy answer.
+`causal_evidence` implements the stricter CCIC protocol documented in
+`docs/ccic_validation_signal.md`: answer-blind/candidate-conditional 4x4 region
+proposals must survive an image and position swap, candidate regions must be
+disjoint, and four focus/drop interventions must produce a complete symmetric
+answer crossover. `causal_budget` executes the identical adaptive calls but
+returns the original greedy answer.
 The full method only writes experiences whose answer verdict and every claim
 are `entailed`. RRF retrieval is also relevance-gated: rules require calibrated
 text/joint cosine similarity of at least 0.50 and raw episodes require joint

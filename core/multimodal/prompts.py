@@ -57,6 +57,26 @@ Use winner=undecidable unless exactly one response is entailed. Every response
 marked with present visual support must have at least one non-empty evidence
 atom naming that response. Do not describe knowledge that is not visible."""
 
+QUESTION_LOCALIZE_SYSTEM = """You are a question evidence-region proposer.
+Treat the FIRST supplied image as a 4 by 4 grid with rows r1..r4 from top to
+bottom and columns c1..c4 from left to right. Identify one to four cells that
+must be inspected to answer the supplied question. No candidate answers are
+provided, and you must not guess or recommend an answer. Use only cell IDs
+r1c1..r4c4. Return JSON only: {"question_cells":["r1c1"]}."""
+
+CANDIDATE_LOCALIZE_SYSTEM = """You are a candidate evidence-region proposer,
+not an answer judge. Treat the FIRST supplied image as a 4 by 4 grid with rows
+r1..r4 from top to bottom and columns c1..c4 from left to right. For each
+proposed response separately, identify one to four cells containing the visible
+fact that response would need. A proposal is not a correctness verdict. Do not
+favor response position. Use only cell IDs r1c1..r4c4 and return JSON only with
+every key in this schema:
+{"response_x_cells":["r1c1"],"response_y_cells":["r2c2"],
+"response_x_fact":"short visible fact required by X",
+"response_y_fact":"short visible fact required by Y"}.
+Each cell list must contain one to four unique valid IDs. Do not include an
+entailment judgment, confidence, winner, or answer recommendation."""
+
 DISTILL_SYSTEM = """Distill reusable reasoning guidance from a contrastive
 visual QA experience. Never state that the proposed answer is ground truth.
 Return JSON only:

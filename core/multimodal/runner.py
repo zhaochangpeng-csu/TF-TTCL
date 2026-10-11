@@ -20,16 +20,25 @@ from .client import (
     parse_contrastive_verdict,
     parse_evidence_certificate,
     parse_evidence_verdict,
+    parse_candidate_grounding,
+    parse_question_grounding,
     parse_json_object,
 )
-from .image_ops import make_blank_views, make_fidelity_views, sha256_file
+from .image_ops import (
+    make_blank_views,
+    make_fidelity_views,
+    make_grid_intervention_views,
+    sha256_file,
+)
 from .memory import EvidenceMemory, RetrievalBundle
 from .prompts import (
     ANSWER_SYSTEM,
+    CANDIDATE_LOCALIZE_SYSTEM,
     CERTIFICATE_VERIFY_SYSTEM,
     CONTRASTIVE_VERIFY_SYSTEM,
     DISTILL_SYSTEM,
     PARAPHRASE_SYSTEM,
+    QUESTION_LOCALIZE_SYSTEM,
     VERIFY_SYSTEM,
     format_memory_context,
     format_question,
@@ -57,6 +66,8 @@ METHODS = {
     "contrastive_evidence",
     "certificate_budget",
     "certificate_evidence",
+    "causal_budget",
+    "causal_evidence",
     "direct_ttcl",
     "evidence_only",
     "evimem",
@@ -269,6 +280,8 @@ class EviMemRunner:
                     VERIFY_SYSTEM,
                     CONTRASTIVE_VERIFY_SYSTEM,
                     CERTIFICATE_VERIFY_SYSTEM,
+                    QUESTION_LOCALIZE_SYSTEM,
+                    CANDIDATE_LOCALIZE_SYSTEM,
                     DISTILL_SYSTEM,
                 ]
             )
@@ -764,6 +777,251 @@ class EviMemRunner:
         )
         return decision, audit
 
+    def _causal_adjudication(
+        self,
+        sample: MultimodalSample,
+        candidates: Sequence[Candidate],
+        sample_index: int,
+        fidelity_images: Sequence[str],
+    ) -> Tuple[SelectionDecision, Dict[str, Any]]:
+        """Conservatively override greedy only after a symmetric causal crossover.
+
+        Localization is only a proposal. Selection is determined by executable
+        focus/drop interventions and fails closed whenever the two answers share
+        a causal footprint or the answer-blind question region is ambiguous.
+        """
+        greedy = _greedy_decision(candidates)
+        greedy_answer = greedy.answer
+        alternatives = [
+            answer
+            for answer, _ in Counter(
+                item.normalized_answer
+                for item in candidates
+                if item.normalized_answer != greedy_answer
+            ).most_common()
+        ]
+        audit: Dict[str, Any] = {
+            "version": "ccic_v1_grid4_strict",
+            "greedy_answer": greedy_answer,
+            "alternative_answer": alternatives[0] if alternatives else None,
+            "localization_stable": False,
+            "candidate_regions_disjoint": False,
+            "question_region_alternative_exclusive": False,
+            "causal_crossover": False,
+            "gate_passed": False,
+            "changed_from_greedy": False,
+            "fallback_reason": "no_alternative" if not alternatives else "unverified",
+            "localizations": [],
+            "interventions": [],
+        }
+        if not alternatives or not sample.image_paths:
+            if alternatives and not sample.image_paths:
+                audit["fallback_reason"] = "no_image"
+            return greedy, audit
+
+        alternative = alternatives[0]
+        answer_metadata = {**sample.metadata, "choices": list(sample.choices)}
+        question = format_question(sample.question, list(sample.choices), answer_metadata)
+
+        def display_answer(answer: str) -> str:
+            if len(answer) == 1 and "a" <= answer <= "z":
+                choice_index = ord(answer) - ord("a")
+                if choice_index < len(sample.choices):
+                    return f"option {answer.upper()} — {sample.choices[choice_index]}"
+            return answer
+
+        question_specs = [
+            ("original_question_only", sample.image_paths),
+            ("fidelity_question_only", fidelity_images or sample.image_paths),
+        ]
+        question_proposals: List[set[str]] = []
+        localization_valid = True
+        for offset, (view, images) in enumerate(question_specs):
+            response = self._generate(
+                QUESTION_LOCALIZE_SYSTEM,
+                sample.question,
+                images,
+                self._sampling(0.0, sample_index * 100 + 78 + offset, max_tokens=128),
+            )
+            proposal = parse_question_grounding(response.content)
+            question_proposals.append(set(proposal.cells))
+            localization_valid = localization_valid and not proposal.parse_error
+            audit["localizations"].append(
+                {
+                    "kind": "question_only",
+                    "view": view,
+                    "candidate_answers_exposed": False,
+                    "image_paths": list(images),
+                    "image_hashes": [sha256_file(path) for path in images],
+                    "raw_response": response.content,
+                    "proposal": asdict(proposal),
+                }
+            )
+
+        candidate_specs = [
+            ("original", sample.image_paths, greedy_answer, alternative),
+            (
+                "fidelity_swapped",
+                fidelity_images or sample.image_paths,
+                alternative,
+                greedy_answer,
+            ),
+        ]
+        candidate_proposals: List[Dict[str, set[str]]] = []
+        for offset, (view, images, candidate_1, candidate_2) in enumerate(candidate_specs):
+            prompt = (
+                f"Question and options:\n{question}\n\n"
+                f"RESPONSE_X proposed answer: {display_answer(candidate_1)}\n"
+                f"RESPONSE_Y proposed answer: {display_answer(candidate_2)}"
+            )
+            response = self._generate(
+                CANDIDATE_LOCALIZE_SYSTEM,
+                prompt,
+                images,
+                self._sampling(0.0, sample_index * 100 + 80 + offset, max_tokens=256),
+            )
+            proposal = parse_candidate_grounding(response.content)
+            by_answer = {
+                candidate_1: set(proposal.candidate_1_cells),
+                candidate_2: set(proposal.candidate_2_cells),
+            }
+            localization_valid = localization_valid and not proposal.parse_error
+            candidate_proposals.append(by_answer)
+            audit["localizations"].append(
+                {
+                    "kind": "candidate_conditional",
+                    "view": view,
+                    "candidate_1": candidate_1,
+                    "candidate_2": candidate_2,
+                    "image_paths": list(images),
+                    "image_hashes": [sha256_file(path) for path in images],
+                    "raw_response": response.content,
+                    "proposal": asdict(proposal),
+                }
+            )
+
+        stable = bool(
+            localization_valid
+            and len(question_proposals) == 2
+            and len(candidate_proposals) == 2
+            and question_proposals[0] == question_proposals[1]
+            and candidate_proposals[0][greedy_answer]
+            == candidate_proposals[1][greedy_answer]
+            and candidate_proposals[0][alternative]
+            == candidate_proposals[1][alternative]
+        )
+        audit["localization_stable"] = stable
+        if not stable:
+            audit["fallback_reason"] = "unstable_or_malformed_localization"
+            greedy.reason += "; causal=unstable_or_malformed_localization"
+            return greedy, audit
+
+        question_cells = question_proposals[0]
+        greedy_cells = candidate_proposals[0][greedy_answer]
+        alternative_cells = candidate_proposals[0][alternative]
+        regions_disjoint = greedy_cells.isdisjoint(alternative_cells)
+        alternative_exclusive = bool(
+            question_cells & alternative_cells
+            and not question_cells & greedy_cells
+        )
+        audit.update(
+            {
+                "question_cells": sorted(question_cells),
+                "greedy_cells": sorted(greedy_cells),
+                "alternative_cells": sorted(alternative_cells),
+                "candidate_regions_disjoint": regions_disjoint,
+                "question_region_alternative_exclusive": alternative_exclusive,
+            }
+        )
+        if not regions_disjoint:
+            audit["fallback_reason"] = "overlapping_candidate_regions"
+            greedy.reason += "; causal=overlapping_candidate_regions"
+            return greedy, audit
+        if not alternative_exclusive:
+            audit["fallback_reason"] = "question_region_not_alternative_exclusive"
+            greedy.reason += "; causal=question_region_not_alternative_exclusive"
+            return greedy, audit
+
+        alternative_focus, alternative_drop = make_grid_intervention_views(
+            sample.image_paths,
+            sorted(alternative_cells),
+            self.image_cache_dir,
+            sample.sample_id,
+            "alternative",
+        )
+        greedy_focus, greedy_drop = make_grid_intervention_views(
+            sample.image_paths,
+            sorted(greedy_cells),
+            self.image_cache_dir,
+            sample.sample_id,
+            "greedy",
+        )
+        intervention_specs = [
+            ("alternative_focus", alternative_focus, alternative),
+            ("alternative_drop", alternative_drop, greedy_answer),
+            ("greedy_focus", greedy_focus, greedy_answer),
+            ("greedy_drop", greedy_drop, alternative),
+        ]
+        observed: Dict[str, str] = {}
+        for offset, (name, images, expected) in enumerate(intervention_specs):
+            candidate = self._candidate(
+                sample,
+                f"causal_{name}",
+                sample.question,
+                images,
+                ANSWER_SYSTEM,
+                self._sampling(0.0, sample_index * 100 + 82 + offset),
+            )
+            observed[name] = candidate.normalized_answer
+            audit["interventions"].append(
+                {
+                    "view": name,
+                    "expected_answer": expected,
+                    "observed_answer": candidate.normalized_answer,
+                    "image_paths": list(images),
+                    "image_hashes": [sha256_file(path) for path in images],
+                    "raw_response": candidate.response.content,
+                }
+            )
+
+        causal_crossover = all(
+            observed[name] == expected
+            for name, _, expected in intervention_specs
+        )
+        audit.update(
+            {
+                "causal_crossover": causal_crossover,
+                "gate_passed": causal_crossover,
+                "changed_from_greedy": causal_crossover,
+                "fallback_reason": None if causal_crossover else "incomplete_causal_crossover",
+            }
+        )
+        if not causal_crossover:
+            greedy.reason += "; causal=incomplete_causal_crossover"
+            return greedy, audit
+
+        representative = next(
+            item for item in candidates if item.normalized_answer == alternative
+        )
+        support = sum(
+            item.normalized_answer == alternative for item in candidates
+        ) / len(candidates)
+        decision = SelectionDecision(
+            answer=alternative,
+            representative=representative,
+            scores=ComponentScores(support, 1.0, 1.0, representative.response.mean_logprob),
+            borda_score=2.0,
+            component_wins=2,
+            eligible_for_memory=False,
+            negative_answer=greedy_answer,
+            negative_representative=greedy.representative,
+            reason=(
+                "causal=ccic_strict_symmetric_crossover; changed_from_greedy=True; "
+                "memory=disabled"
+            ),
+        )
+        return decision, audit
+
     def _distill(
         self,
         sample: MultimodalSample,
@@ -943,6 +1201,7 @@ class EviMemRunner:
 
             contrastive_verdicts: List[Dict[str, Any]] = []
             evidence_certificate: Dict[str, Any] = {}
+            causal_certificate: Dict[str, Any] = {}
             if self.method in {"zero_shot", "cot"}:
                 question = sample.question
                 if self.method == "cot":
@@ -1011,6 +1270,20 @@ class EviMemRunner:
                         decision.reason += "; budget_control=certificate_ignored"
                     else:
                         decision = certificate_decision
+                elif self.method in {"causal_budget", "causal_evidence"}:
+                    counterfactual_answers = []
+                    verdicts = {}
+                    causal_decision, causal_certificate = self._causal_adjudication(
+                        sample,
+                        candidates,
+                        sample_index,
+                        fidelity,
+                    )
+                    if self.method == "causal_budget":
+                        decision = _greedy_decision(candidates)
+                        decision.reason += "; budget_control=causal_ignored"
+                    else:
+                        decision = causal_decision
                 else:
                     counterfactual_answers = (
                         self._counterfactual_answers(sample, sample_index, blanks, previous_images)
@@ -1095,6 +1368,7 @@ class EviMemRunner:
                 "counterfactual_answers": counterfactual_answers,
                 "contrastive_verdicts": contrastive_verdicts,
                 "evidence_certificate": evidence_certificate,
+                "causal_certificate": causal_certificate,
                 "retrieved_experience_ids": [item.experience.experience_id for item in retrieved.episodes],
                 "retrieved_episodes": [
                     {

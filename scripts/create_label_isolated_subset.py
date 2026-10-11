@@ -41,23 +41,27 @@ def create_subset(
     manifest_path: Path,
     count: int,
     seed: int,
+    offset: int = 0,
 ) -> dict[str, Any]:
     rows = [
         json.loads(line)
         for line in source_path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    if not 0 < count <= len(rows):
-        raise ValueError(f"count must be between 1 and {len(rows)}")
+    if offset < 0 or count <= 0 or offset + count > len(rows):
+        raise ValueError(
+            f"offset/count must select a non-empty range within {len(rows)} rows"
+        )
     ids = [str(row.get("id", "")) for row in rows]
     if any(not sample_id for sample_id in ids) or len(set(ids)) != len(ids):
         raise ValueError("Source rows must have unique non-empty IDs")
-    ranked = sorted(
+    ranked_all = sorted(
         rows,
         key=lambda row: hashlib.sha256(
             f"{seed}:{row['id']}".encode("utf-8")
         ).hexdigest(),
-    )[:count]
+    )
+    ranked = ranked_all[offset : offset + count]
 
     for path in (inference_path, labels_path, manifest_path):
         if path.exists():
@@ -76,8 +80,9 @@ def create_subset(
     manifest = {
         "source": str(source_path.resolve()),
         "source_sha256": sha256_file(source_path),
-        "selection": "lowest_sha256(seed:id)",
+        "selection": "sha256(seed:id) rank slice",
         "seed": seed,
+        "offset": offset,
         "count": count,
         "selected_ids": selected_ids,
         "selected_ids_sha256": hashlib.sha256(
@@ -100,6 +105,7 @@ def main() -> None:
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--count", type=int, required=True)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--offset", type=int, default=0)
     args = parser.parse_args()
     manifest = create_subset(
         Path(args.source),
@@ -108,6 +114,7 @@ def main() -> None:
         Path(args.manifest),
         args.count,
         args.seed,
+        args.offset,
     )
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
 
