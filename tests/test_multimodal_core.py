@@ -45,7 +45,7 @@ from evaluate.multimodal.metrics import (
 )
 from evaluate.multimodal.candidate_oracle import summarize_candidate_oracle
 from scripts.prepare_multimodal_dataset import cached_modelscope_parquet_rows
-from scripts.prepare_scienceqa import convert_scienceqa
+from scripts.prepare_scienceqa import convert_modelscope_scienceqa_export, convert_scienceqa
 
 
 def candidate(name: str, answer: str, logprob: float = -0.2) -> Candidate:
@@ -111,6 +111,51 @@ class SchemaAndDatasetTests(unittest.TestCase):
             self.assertEqual(row["answer"], 1)
             self.assertEqual(row["question_type"], "multi_choice")
             self.assertIn("Look at the square", row["question"])
+            self.assertNotIn("lecture", row)
+            self.assertNotIn("solution", row)
+
+    def test_modelscope_scienceqa_export_restores_official_ids_and_hints(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            image_path = root / "images" / "hashed.png"
+            image_path.parent.mkdir(parents=True)
+            Image.new("RGB", (8, 8), "blue").save(image_path)
+            problems = {
+                "101": {
+                    "split": "train",
+                    "question": "Which color?",
+                    "hint": "Look at the square.",
+                    "image": "image.png",
+                    "choices": ["red", "blue"],
+                    "answer": 1,
+                    "grade": "grade2",
+                }
+            }
+            problems_path = root / "problems.json"
+            problems_path.write_text(json.dumps(problems), encoding="utf-8")
+            export_path = root / "raw.jsonl"
+            export_path.write_text(
+                json.dumps(
+                    {
+                        "id": "0",
+                        "question": "Which color?",
+                        "image": "images/hashed.png",
+                        "choices": ["red", "blue"],
+                        "answer": 1,
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            output_path = root / "canonical.jsonl"
+            manifest = convert_modelscope_scienceqa_export(
+                problems_path, export_path, output_path, "train"
+            )
+            row = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(manifest["mapping_validation"], "full_positional_content_match")
+            self.assertEqual(row["id"], "101")
+            self.assertIn("Look at the square", row["question"])
+            self.assertEqual(Path(row["image"]), image_path.resolve())
             self.assertNotIn("lecture", row)
             self.assertNotIn("solution", row)
 

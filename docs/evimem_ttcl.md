@@ -83,6 +83,22 @@ For ScienceQA, prefer the official `lupantech/ScienceQA` `problems.json` and
 split image archives. Convert an extracted split with
 `scripts/prepare_scienceqa.py`; it keeps the optional textual hint, excludes
 lecture/solution fields, and can restrict the stream to image-bearing samples.
+If the official image archive is unavailable, export the ModelScope mirror and
+then restore official IDs and metadata with a full row-by-row content check:
+
+```bash
+python scripts/prepare_multimodal_dataset.py \
+  --dataset-id AI-ModelScope/ScienceQA \
+  --dataset-name scienceqa_img --split train --revision master \
+  --output-dir data/multimodal/scienceqa_modelscope_train --require-image
+python scripts/prepare_scienceqa.py \
+  --problems data/multimodal/scienceqa_img/.downloads/problems.json \
+  --modelscope-export \
+    data/multimodal/scienceqa_modelscope_train/scienceqa_img_train.jsonl \
+  --output \
+    data/multimodal/scienceqa_modelscope_train/scienceqa_img_train_canonical.jsonl \
+  --split train
+```
 
 ```bash
 python core/mm_main.py --config core/config/mm_qwen25vl.yaml --validate-config
