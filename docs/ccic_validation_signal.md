@@ -91,3 +91,15 @@ complete-crossover rate, token/latency cost, and selective precision among
 changed answers. Continue to ScienceQA validation only if `causal_evidence`
 beats both greedy and `causal_budget`, with zero or very few harmful overrides.
 
+On the experiment server, the paired label-free smoke test is launched from the
+`ttt` environment with:
+
+```bash
+bash scripts/run_scienceqa_causal_smoke.sh
+```
+
+The script refuses to run while GPU 2 has any compute process. It starts its own
+port-9000 Qwen2.5-VL service, runs the two matched 20-row arms, writes
+`protocol_audit.json`, and terminates only the service process it created on
+success, failure, or interruption. It never opens the label file.
+
