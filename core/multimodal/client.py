@@ -12,7 +12,9 @@ from typing import Any, Dict, List, Mapping, Optional, Protocol, Sequence
 from openai import OpenAI
 
 from .schema import (
+    CertificateEvidenceAtom,
     ContrastiveEvidenceVerdict,
+    EvidenceCertificateVerdict,
     EvidenceClaim,
     EvidenceVerdict,
     GenerationResponse,
@@ -198,6 +200,101 @@ def parse_contrastive_verdict(text: str) -> ContrastiveEvidenceVerdict:
             winner="undecidable",
             candidate_1_status="insufficient",
             candidate_2_status="insufficient",
+            rationale=text[:500],
+            parse_error=True,
+        )
+
+
+def parse_evidence_certificate(text: str) -> EvidenceCertificateVerdict:
+    """Parse the strict certificate schema; malformed output fails closed."""
+    allowed_statuses = {"entailed", "contradicted", "insufficient"}
+    allowed_support = {"present", "absent", "conflicting"}
+    winner_aliases = {
+        "response_x": "candidate_1",
+        "response_y": "candidate_2",
+        "candidate_1": "candidate_1",
+        "candidate_2": "candidate_2",
+        "undecidable": "undecidable",
+    }
+    required = {
+        "winner",
+        "response_x_status",
+        "response_y_status",
+        "response_x_visual_support",
+        "response_y_visual_support",
+        "evidence_atoms",
+        "rationale",
+    }
+    try:
+        payload = parse_json_object(text)
+        raw_winner = str(payload.get("winner", "")).strip().lower()
+        first_status = str(payload.get("response_x_status", "")).strip().lower()
+        second_status = str(payload.get("response_y_status", "")).strip().lower()
+        first_support = str(payload.get("response_x_visual_support", "")).strip().lower()
+        second_support = str(payload.get("response_y_visual_support", "")).strip().lower()
+        raw_atoms = payload.get("evidence_atoms")
+        malformed = (
+            not required.issubset(payload)
+            or raw_winner not in winner_aliases
+            or first_status not in allowed_statuses
+            or second_status not in allowed_statuses
+            or first_support not in allowed_support
+            or second_support not in allowed_support
+            or not isinstance(raw_atoms, list)
+        )
+        atoms: List[CertificateEvidenceAtom] = []
+        if isinstance(raw_atoms, list):
+            for item in raw_atoms:
+                if not isinstance(item, Mapping):
+                    malformed = True
+                    continue
+                raw_supports = str(item.get("supports", "")).strip().lower()
+                mapped_supports = winner_aliases.get(raw_supports)
+                fact = str(item.get("fact", "")).strip()
+                location = str(item.get("location", "")).strip()
+                if mapped_supports is None or not fact or not location:
+                    malformed = True
+                    continue
+                atoms.append(
+                    CertificateEvidenceAtom(
+                        fact=fact,
+                        location=location,
+                        supports=mapped_supports,  # type: ignore[arg-type]
+                    )
+                )
+        if (
+            first_support == "present"
+            and not any(atom.supports == "candidate_1" for atom in atoms)
+        ) or (
+            second_support == "present"
+            and not any(atom.supports == "candidate_2" for atom in atoms)
+        ):
+            malformed = True
+        return EvidenceCertificateVerdict(
+            winner=winner_aliases.get(raw_winner, "undecidable"),  # type: ignore[arg-type]
+            candidate_1_status=(
+                first_status if first_status in allowed_statuses else "insufficient"
+            ),  # type: ignore[arg-type]
+            candidate_2_status=(
+                second_status if second_status in allowed_statuses else "insufficient"
+            ),  # type: ignore[arg-type]
+            candidate_1_visual_support=(
+                first_support if first_support in allowed_support else "absent"
+            ),  # type: ignore[arg-type]
+            candidate_2_visual_support=(
+                second_support if second_support in allowed_support else "absent"
+            ),  # type: ignore[arg-type]
+            evidence_atoms=atoms,
+            rationale=str(payload.get("rationale", "")),
+            parse_error=malformed,
+        )
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return EvidenceCertificateVerdict(
+            winner="undecidable",
+            candidate_1_status="insufficient",
+            candidate_2_status="insufficient",
+            candidate_1_visual_support="absent",
+            candidate_2_visual_support="absent",
             rationale=text[:500],
             parse_error=True,
         )

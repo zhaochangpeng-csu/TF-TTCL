@@ -16,6 +16,7 @@ from core.mm_main import apply_overrides
 from core.multimodal.client import (
     build_multimodal_content,
     parse_contrastive_verdict,
+    parse_evidence_certificate,
     parse_evidence_verdict,
 )
 from core.multimodal.answers import normalize_answer
@@ -46,6 +47,7 @@ from evaluate.multimodal.metrics import (
 from evaluate.multimodal.candidate_oracle import summarize_candidate_oracle
 from scripts.prepare_multimodal_dataset import cached_modelscope_parquet_rows
 from scripts.prepare_scienceqa import convert_modelscope_scienceqa_export, convert_scienceqa
+from scripts.create_label_isolated_subset import create_subset
 
 
 def candidate(name: str, answer: str, logprob: float = -0.2) -> Candidate:
@@ -180,6 +182,51 @@ class SchemaAndDatasetTests(unittest.TestCase):
                 self.assertEqual(list(rows)[0]["pid"], "7")
                 self.assertEqual(len(urls), 1)
 
+    def test_fixed_subset_is_deterministic_and_label_isolated(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source.jsonl"
+            rows = [
+                {
+                    "id": str(index),
+                    "question": f"Question {index}?",
+                    "image": f"image-{index}.png",
+                    "choices": ["yes", "no"],
+                    "answer": index % 2,
+                }
+                for index in range(10)
+            ]
+            source.write_text(
+                "".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8"
+            )
+            first = create_subset(
+                source,
+                root / "first.inference.jsonl",
+                root / "first.labels.jsonl",
+                root / "first.manifest.json",
+                count=4,
+                seed=7,
+            )
+            second = create_subset(
+                source,
+                root / "second.inference.jsonl",
+                root / "second.labels.jsonl",
+                root / "second.manifest.json",
+                count=4,
+                seed=7,
+            )
+            inference_rows = [
+                json.loads(line)
+                for line in (root / "first.inference.jsonl").read_text().splitlines()
+            ]
+            label_rows = [
+                json.loads(line)
+                for line in (root / "first.labels.jsonl").read_text().splitlines()
+            ]
+            self.assertEqual(first["selected_ids"], second["selected_ids"])
+            self.assertTrue(all("answer" not in row for row in inference_rows))
+            self.assertTrue(all("answer" in row for row in label_rows))
+
     def test_dotted_config_overrides_are_typed(self):
         config = {"experiment": {"limit": 20}, "model": {"request_logprobs": True}}
         updated = apply_overrides(
@@ -261,6 +308,31 @@ class EvidenceScoringTests(unittest.TestCase):
         )
         self.assertTrue(wrong_evidence_type.parse_error)
         self.assertEqual(wrong_evidence_type.decisive_evidence, [])
+
+    def test_certificate_parser_requires_grounded_atoms(self):
+        valid = parse_evidence_certificate(json.dumps({
+            "winner": "response_y",
+            "response_x_status": "contradicted",
+            "response_y_status": "entailed",
+            "response_x_visual_support": "conflicting",
+            "response_y_visual_support": "present",
+            "evidence_atoms": [
+                {"fact": "blue square", "location": "center", "supports": "response_y"}
+            ],
+            "rationale": "visible",
+        }))
+        self.assertFalse(valid.parse_error)
+        self.assertEqual(valid.winner, "candidate_2")
+        missing_atom = parse_evidence_certificate(json.dumps({
+            "winner": "response_y",
+            "response_x_status": "contradicted",
+            "response_y_status": "entailed",
+            "response_x_visual_support": "conflicting",
+            "response_y_visual_support": "present",
+            "evidence_atoms": [],
+            "rationale": "unsupported",
+        }))
+        self.assertTrue(missing_atom.parse_error)
 
 
 class MemoryTests(unittest.TestCase):
@@ -413,6 +485,96 @@ class MetricsTests(unittest.TestCase):
 
 
 class RunnerTests(unittest.TestCase):
+    def test_certificate_budget_matches_calls_and_evidence_changes_only_with_drop(self):
+        class CertificateFake(FakeVLM):
+            def __init__(self, blank_supports_winner=False):
+                self.blank_supports_winner = blank_supports_winner
+
+            def generate(self, system_prompt, user_text, image_paths, sampling):
+                if "strict visual-evidence" in system_prompt:
+                    first_is_a = "RESPONSE_X proposed answer: option A" in user_text
+                    winner = "response_y" if first_is_a else "response_x"
+                    if any("blank" in path for path in image_paths) and not self.blank_supports_winner:
+                        payload = {
+                            "winner": "undecidable",
+                            "response_x_status": "insufficient",
+                            "response_y_status": "insufficient",
+                            "response_x_visual_support": "absent",
+                            "response_y_visual_support": "absent",
+                            "evidence_atoms": [],
+                            "rationale": "no visible evidence",
+                        }
+                    else:
+                        payload = {
+                            "winner": winner,
+                            "response_x_status": "contradicted" if first_is_a else "entailed",
+                            "response_y_status": "entailed" if first_is_a else "contradicted",
+                            "response_x_visual_support": "conflicting" if first_is_a else "present",
+                            "response_y_visual_support": "present" if first_is_a else "conflicting",
+                            "evidence_atoms": [{
+                                "fact": "visible blue mark",
+                                "location": "center",
+                                "supports": winner,
+                            }],
+                            "rationale": "one response matches the visible mark",
+                        }
+                    return GenerationResponse(json.dumps(payload), 17, 5, [], 0.01)
+                if (
+                    "Rewrite only the supplied question clause" not in system_prompt
+                    and sampling.temperature > 0
+                ):
+                    return GenerationResponse("Final answer: B", 17, 5, [], 0.01)
+                return super().generate(system_prompt, user_text, image_paths, sampling)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            image = root / "image.png"
+            Image.new("RGB", (8, 8), "blue").save(image)
+            sample = MultimodalSample(
+                "q1",
+                "scienceqa_img",
+                "Which option?",
+                (str(image),),
+                ("red", "blue"),
+                {"question_type": "multi_choice"},
+            )
+            budget = EviMemRunner(
+                CertificateFake(),
+                EvidenceMemory(HashMultimodalEmbedder()),
+                root / "budget",
+                method="certificate_budget",
+                resume=False,
+            )
+            evidence = EviMemRunner(
+                CertificateFake(),
+                EvidenceMemory(HashMultimodalEmbedder()),
+                root / "evidence",
+                method="certificate_evidence",
+                resume=False,
+            )
+            budget.run([sample])
+            evidence.run([sample])
+            budget_row = json.loads((root / "budget/predictions.jsonl").read_text())
+            evidence_row = json.loads((root / "evidence/predictions.jsonl").read_text())
+            self.assertEqual(budget_row["answer"], "a")
+            self.assertEqual(evidence_row["answer"], "b")
+            self.assertTrue(evidence_row["evidence_certificate"]["gate_passed"])
+            self.assertTrue(evidence_row["evidence_certificate"]["changed_from_greedy"])
+            self.assertEqual(budget.total_prompt_tokens, evidence.total_prompt_tokens)
+            self.assertEqual(budget.total_completion_tokens, evidence.total_completion_tokens)
+
+            rejected = EviMemRunner(
+                CertificateFake(blank_supports_winner=True),
+                EvidenceMemory(HashMultimodalEmbedder()),
+                root / "rejected",
+                method="certificate_evidence",
+                resume=False,
+            )
+            rejected.run([sample])
+            rejected_row = json.loads((root / "rejected/predictions.jsonl").read_text())
+            self.assertEqual(rejected_row["answer"], "a")
+            self.assertFalse(rejected_row["evidence_certificate"]["gate_passed"])
+
     def test_semantic_augmentation_preserves_context_verbatim(self):
         with tempfile.TemporaryDirectory() as directory:
             runner = EviMemRunner(

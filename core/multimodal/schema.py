@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Literal, Optional, Sequence
 
 EvidenceStatus = Literal["entailed", "contradicted", "insufficient"]
 ContrastiveWinner = Literal["candidate_1", "candidate_2", "undecidable"]
+VisualSupport = Literal["present", "absent", "conflicting"]
 
 
 @dataclass(frozen=True)
@@ -111,6 +112,25 @@ class ContrastiveEvidenceVerdict:
     candidate_2_status: EvidenceStatus
     decisive_evidence: List[str] = field(default_factory=list)
     counterevidence: List[str] = field(default_factory=list)
+    rationale: str = ""
+    parse_error: bool = False
+
+
+@dataclass(frozen=True)
+class CertificateEvidenceAtom:
+    fact: str
+    location: str
+    supports: ContrastiveWinner
+
+
+@dataclass
+class EvidenceCertificateVerdict:
+    winner: ContrastiveWinner
+    candidate_1_status: EvidenceStatus
+    candidate_2_status: EvidenceStatus
+    candidate_1_visual_support: VisualSupport
+    candidate_2_visual_support: VisualSupport
+    evidence_atoms: List[CertificateEvidenceAtom] = field(default_factory=list)
     rationale: str = ""
     parse_error: bool = False
 

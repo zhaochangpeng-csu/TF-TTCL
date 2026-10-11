@@ -37,6 +37,26 @@ is entailed and the other is contradicted or insufficient, winner MUST name the
 entailed candidate. decisive_evidence and counterevidence MUST be JSON arrays,
 even when empty."""
 
+CERTIFICATE_VERIFY_SYSTEM = """You are constructing a strict visual-evidence
+certificate, not generating a new answer. Compare exactly RESPONSE_X and
+RESPONSE_Y against only the supplied image, question, context, and options.
+For each response, separately judge overall entailment and whether visible
+image evidence is present, absent, or conflicting. Text-only plausibility is
+not visual support. Do not infer what kind of image transformation was used,
+do not favor response position, and do not use answer frequency. Return JSON
+only with every key in this schema:
+{"winner":"response_x|response_y|undecidable",
+"response_x_status":"entailed|contradicted|insufficient",
+"response_y_status":"entailed|contradicted|insufficient",
+"response_x_visual_support":"present|absent|conflicting",
+"response_y_visual_support":"present|absent|conflicting",
+"evidence_atoms":[{"fact":"short visible fact","location":"where visible",
+"supports":"response_x|response_y|undecidable"}],
+"rationale":"short comparison"}.
+Use winner=undecidable unless exactly one response is entailed. Every response
+marked with present visual support must have at least one non-empty evidence
+atom naming that response. Do not describe knowledge that is not visible."""
+
 DISTILL_SYSTEM = """Distill reusable reasoning guidance from a contrastive
 visual QA experience. Never state that the proposed answer is ground truth.
 Return JSON only:

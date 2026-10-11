@@ -106,8 +106,9 @@ python core/mm_main.py --config core/config/mm_qwen25vl.yaml
 ```
 
 Supported methods are `zero_shot`, `cot`, `self_consistency`,
-`budget_matched`, `contrastive_budget`, `contrastive_evidence`, `direct_ttcl`,
-`evidence_only`, and `evimem`. `contrastive_evidence` invokes a position-swapped
+`budget_matched`, `contrastive_budget`, `contrastive_evidence`,
+`certificate_budget`, `certificate_evidence`, `direct_ttcl`, `evidence_only`,
+and `evimem`. `contrastive_evidence` invokes a position-swapped
 two-view adjudicator only when candidate answers disagree; it falls back to
 majority voting unless both views identify the same uniquely entailed answer.
 This can change the selected answer, but the result is eligible for memory only
@@ -115,6 +116,13 @@ when at least one view explicitly contradicts the alternative.
 `contrastive_budget` runs the identical calls but discards the adjudicator
 decision. Raw adjudicator responses are retained for protocol audits. All evidence,
 augmentation, memory, and retrieval-modality ablations are config switches.
+`certificate_evidence` is a stricter, memory-free gate. It compares the original
+greedy answer with the strongest different candidate on the original and
+fidelity-preserving image views, with response positions swapped. It may replace
+the greedy answer only when both views identify the same uniquely entailed,
+visually grounded answer and that answer loses support on every available blank
+or historical mismatched-image probe. `certificate_budget` performs the same
+calls but always returns the original greedy answer.
 The full method only writes experiences whose answer verdict and every claim
 are `entailed`. RRF retrieval is also relevance-gated: rules require calibrated
 text/joint cosine similarity of at least 0.50 and raw episodes require joint

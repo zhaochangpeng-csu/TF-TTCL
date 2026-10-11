@@ -18,6 +18,7 @@ from .answers import normalize_answer
 from .client import (
     VLMBackend,
     parse_contrastive_verdict,
+    parse_evidence_certificate,
     parse_evidence_verdict,
     parse_json_object,
 )
@@ -25,6 +26,7 @@ from .image_ops import make_blank_views, make_fidelity_views, sha256_file
 from .memory import EvidenceMemory, RetrievalBundle
 from .prompts import (
     ANSWER_SYSTEM,
+    CERTIFICATE_VERIFY_SYSTEM,
     CONTRASTIVE_VERIFY_SYSTEM,
     DISTILL_SYSTEM,
     PARAPHRASE_SYSTEM,
@@ -53,6 +55,8 @@ METHODS = {
     "budget_matched",
     "contrastive_budget",
     "contrastive_evidence",
+    "certificate_budget",
+    "certificate_evidence",
     "direct_ttcl",
     "evidence_only",
     "evimem",
@@ -187,6 +191,27 @@ def _majority_decision(candidates: Sequence[Candidate]) -> SelectionDecision:
     )
 
 
+def _greedy_decision(candidates: Sequence[Candidate]) -> SelectionDecision:
+    if not candidates:
+        raise ValueError("At least one candidate is required")
+    representative = next(
+        (item for item in candidates if item.trajectory == "original_greedy"),
+        candidates[0],
+    )
+    support = sum(
+        item.normalized_answer == representative.normalized_answer for item in candidates
+    ) / len(candidates)
+    return SelectionDecision(
+        answer=representative.normalized_answer,
+        representative=representative,
+        scores=ComponentScores(support, 0.0, 0.5, representative.response.mean_logprob),
+        borda_score=support,
+        component_wins=0,
+        eligible_for_memory=False,
+        reason="certificate=fallback_original_greedy",
+    )
+
+
 class EviMemRunner:
     def __init__(
         self,
@@ -243,6 +268,7 @@ class EviMemRunner:
                     PARAPHRASE_SYSTEM,
                     VERIFY_SYSTEM,
                     CONTRASTIVE_VERIFY_SYSTEM,
+                    CERTIFICATE_VERIFY_SYSTEM,
                     DISTILL_SYSTEM,
                 ]
             )
@@ -552,6 +578,192 @@ class EviMemRunner:
             records,
         )
 
+    def _certificate_adjudication(
+        self,
+        sample: MultimodalSample,
+        candidates: Sequence[Candidate],
+        sample_index: int,
+        fidelity_images: Sequence[str],
+        blank_images: Sequence[str],
+        mismatch_images: Sequence[str],
+    ) -> Tuple[SelectionDecision, Dict[str, Any]]:
+        greedy = _greedy_decision(candidates)
+        greedy_answer = greedy.answer
+        alternatives = [
+            answer
+            for answer, _ in Counter(
+                item.normalized_answer
+                for item in candidates
+                if item.normalized_answer != greedy_answer
+            ).most_common()
+        ]
+        audit: Dict[str, Any] = {
+            "greedy_answer": greedy_answer,
+            "alternative_answer": alternatives[0] if alternatives else None,
+            "real_stable": False,
+            "counterfactual_drop": False,
+            "gate_passed": False,
+            "changed_from_greedy": False,
+            "fallback_reason": "no_alternative" if not alternatives else "unverified",
+            "views": [],
+        }
+        if not alternatives:
+            return greedy, audit
+
+        alternative = alternatives[0]
+        answer_metadata = {**sample.metadata, "choices": list(sample.choices)}
+        question = format_question(sample.question, list(sample.choices), answer_metadata)
+
+        def display_answer(answer: str) -> str:
+            if len(answer) == 1 and "a" <= answer <= "z":
+                choice_index = ord(answer) - ord("a")
+                if choice_index < len(sample.choices):
+                    return f"option {answer.upper()} — {sample.choices[choice_index]}"
+            return answer
+
+        views: List[Tuple[str, Sequence[str], str, str, str]] = [
+            ("original", sample.image_paths, greedy_answer, alternative, "real"),
+            (
+                "fidelity_swapped",
+                fidelity_images or sample.image_paths,
+                alternative,
+                greedy_answer,
+                "real",
+            ),
+            ("blank", blank_images, greedy_answer, alternative, "counterfactual"),
+        ]
+        if mismatch_images:
+            views.append(
+                ("mismatch_swapped", mismatch_images, alternative, greedy_answer, "counterfactual")
+            )
+
+        real_winners: List[str] = []
+        counterfactual_records: List[Dict[str, Any]] = []
+        for offset, (view, images, candidate_1, candidate_2, view_kind) in enumerate(views):
+            prompt = (
+                f"Question and options:\n{question}\n\n"
+                f"RESPONSE_X proposed answer: {display_answer(candidate_1)}\n"
+                f"RESPONSE_Y proposed answer: {display_answer(candidate_2)}"
+            )
+            response = self._generate(
+                CERTIFICATE_VERIFY_SYSTEM,
+                prompt,
+                images,
+                self._sampling(0.0, sample_index * 100 + 70 + offset, max_tokens=384),
+            )
+            verdict = parse_evidence_certificate(response.content)
+            slot_to_answer = {"candidate_1": candidate_1, "candidate_2": candidate_2}
+            statuses = {
+                "candidate_1": verdict.candidate_1_status,
+                "candidate_2": verdict.candidate_2_status,
+            }
+            visual_support = {
+                "candidate_1": verdict.candidate_1_visual_support,
+                "candidate_2": verdict.candidate_2_visual_support,
+            }
+            entailed = [slot for slot, status in statuses.items() if status == "entailed"]
+            status_winner = entailed[0] if len(entailed) == 1 else None
+            resolved_answer = slot_to_answer.get(status_winner)
+            winner_has_atom = bool(
+                status_winner
+                and any(atom.supports == status_winner for atom in verdict.evidence_atoms)
+            )
+            real_valid = bool(
+                view_kind == "real"
+                and not verdict.parse_error
+                and verdict.winner == status_winner
+                and status_winner in slot_to_answer
+                and visual_support.get(status_winner) == "present"
+                and winner_has_atom
+            )
+            record = {
+                "view": view,
+                "view_kind": view_kind,
+                "candidate_1": candidate_1,
+                "candidate_2": candidate_2,
+                "image_paths": list(images),
+                "image_hashes": [sha256_file(path) for path in images],
+                "raw_response": response.content,
+                "verdict": asdict(verdict),
+                "status_winner": status_winner,
+                "resolved_answer": resolved_answer,
+                "real_valid": real_valid,
+            }
+            if view_kind == "real" and real_valid and resolved_answer is not None:
+                real_winners.append(resolved_answer)
+            if view_kind == "counterfactual":
+                counterfactual_records.append(record)
+            audit["views"].append(record)
+
+        real_stable = len(real_winners) == 2 and real_winners[0] == real_winners[1]
+        winner = real_winners[0] if real_stable else None
+        counterfactual_drop = bool(winner and counterfactual_records)
+        if winner:
+            for record in counterfactual_records:
+                verdict = record["verdict"]
+                winner_slot = (
+                    "candidate_1" if record["candidate_1"] == winner else "candidate_2"
+                )
+                winner_status = verdict[f"{winner_slot}_status"]
+                winner_support = verdict[f"{winner_slot}_visual_support"]
+                winner_atoms = [
+                    atom
+                    for atom in verdict["evidence_atoms"]
+                    if atom["supports"] == winner_slot
+                ]
+                dropped = (
+                    not verdict["parse_error"]
+                    and winner_status != "entailed"
+                    and winner_support in {"absent", "conflicting"}
+                    and not winner_atoms
+                )
+                record["winner_visual_support_dropped"] = dropped
+                counterfactual_drop = counterfactual_drop and dropped
+
+        gate_passed = bool(real_stable and counterfactual_drop and winner)
+        audit.update(
+            {
+                "real_stable": real_stable,
+                "counterfactual_drop": counterfactual_drop,
+                "gate_passed": gate_passed,
+                "changed_from_greedy": bool(gate_passed and winner != greedy_answer),
+                "fallback_reason": None if gate_passed else (
+                    "unstable_real_views" if not real_stable else "counterfactual_support_did_not_drop"
+                ),
+            }
+        )
+        if not gate_passed or winner is None:
+            greedy.reason += f"; certificate={audit['fallback_reason']}"
+            return greedy, audit
+
+        representative = next(
+            item for item in candidates if item.normalized_answer == winner
+        )
+        support = sum(item.normalized_answer == winner for item in candidates) / len(candidates)
+        decision = SelectionDecision(
+            answer=winner,
+            representative=representative,
+            scores=ComponentScores(support, 1.0, 1.0, representative.response.mean_logprob),
+            borda_score=2.0,
+            component_wins=2,
+            eligible_for_memory=False,
+            negative_answer=(alternative if winner == greedy_answer else greedy_answer),
+            negative_representative=next(
+                (
+                    item
+                    for item in candidates
+                    if item.normalized_answer
+                    == (alternative if winner == greedy_answer else greedy_answer)
+                ),
+                None,
+            ),
+            reason=(
+                "certificate=accepted_real_stable_counterfactual_drop; "
+                f"changed_from_greedy={winner != greedy_answer}; memory=disabled"
+            ),
+        )
+        return decision, audit
+
     def _distill(
         self,
         sample: MultimodalSample,
@@ -730,6 +942,7 @@ class EviMemRunner:
             memory_context, retrieved = self._memory_context(sample, sample_index)
 
             contrastive_verdicts: List[Dict[str, Any]] = []
+            evidence_certificate: Dict[str, Any] = {}
             if self.method in {"zero_shot", "cot"}:
                 question = sample.question
                 if self.method == "cot":
@@ -782,6 +995,22 @@ class EviMemRunner:
                         if self.method == "contrastive_budget"
                         else contrastive_decision
                     )
+                elif self.method in {"certificate_budget", "certificate_evidence"}:
+                    counterfactual_answers = []
+                    verdicts = {}
+                    certificate_decision, evidence_certificate = self._certificate_adjudication(
+                        sample,
+                        candidates,
+                        sample_index,
+                        fidelity,
+                        blanks,
+                        previous_images,
+                    )
+                    if self.method == "certificate_budget":
+                        decision = _greedy_decision(candidates)
+                        decision.reason += "; budget_control=certificate_ignored"
+                    else:
+                        decision = certificate_decision
                 else:
                     counterfactual_answers = (
                         self._counterfactual_answers(sample, sample_index, blanks, previous_images)
@@ -865,6 +1094,7 @@ class EviMemRunner:
                 ],
                 "counterfactual_answers": counterfactual_answers,
                 "contrastive_verdicts": contrastive_verdicts,
+                "evidence_certificate": evidence_certificate,
                 "retrieved_experience_ids": [item.experience.experience_id for item in retrieved.episodes],
                 "retrieved_episodes": [
                     {
