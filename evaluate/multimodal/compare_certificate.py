@@ -125,6 +125,7 @@ def main() -> None:
         }
 
     greedy_scores = scores["greedy"]
+    budget_scores = scores["certificate_budget"]
     evidence_scores = scores["certificate_evidence"]
     delta, low, high = paired_bootstrap_delta_ci(
         greedy_scores, evidence_scores, args.bootstrap_samples, args.seed
@@ -137,6 +138,24 @@ def main() -> None:
         for sample_id in reference_order
         if evidence_rows[sample_id]["answer"] != greedy_rows[sample_id]["answer"]
     ]
+    budget_changed = [
+        sample_id
+        for sample_id in reference_order
+        if budget_rows[sample_id]["answer"] != greedy_rows[sample_id]["answer"]
+    ]
+    evidence_budget_changed = [
+        sample_id
+        for sample_id in reference_order
+        if evidence_rows[sample_id]["answer"] != budget_rows[sample_id]["answer"]
+    ]
+    budget_delta, budget_low, budget_high = paired_bootstrap_delta_ci(
+        greedy_scores, budget_scores, args.bootstrap_samples, args.seed
+    )
+    evidence_budget_delta, evidence_budget_low, evidence_budget_high = (
+        paired_bootstrap_delta_ci(
+            budget_scores, evidence_scores, args.bootstrap_samples, args.seed
+        )
+    )
     gates = [evidence_rows[sample_id].get("evidence_certificate", {}) for sample_id in reference_order]
     fallback_reasons = Counter(
         str(gate.get("fallback_reason")) for gate in gates if not gate.get("gate_passed")
@@ -158,6 +177,21 @@ def main() -> None:
         "dataset": args.dataset,
         "n": len(reference_order),
         "runs": aggregate,
+        "budget_minus_greedy": {
+            "delta": budget_delta,
+            "delta_ci95": [budget_low, budget_high],
+            "paired_randomization_p": paired_randomization_p_value(
+                greedy_scores, budget_scores, args.bootstrap_samples, args.seed
+            ),
+            "budget_better": sum(
+                right > left for left, right in zip(greedy_scores, budget_scores)
+            ),
+            "greedy_better": sum(
+                left > right for left, right in zip(greedy_scores, budget_scores)
+            ),
+            "answer_changed": len(budget_changed),
+            "changed_sample_ids": budget_changed,
+        },
         "evidence_minus_greedy": {
             "delta": delta,
             "delta_ci95": [low, high],
@@ -176,6 +210,21 @@ def main() -> None:
             ),
             "answer_changed": len(changed),
             "changed_sample_ids": changed,
+        },
+        "evidence_minus_budget": {
+            "delta": evidence_budget_delta,
+            "delta_ci95": [evidence_budget_low, evidence_budget_high],
+            "paired_randomization_p": paired_randomization_p_value(
+                budget_scores, evidence_scores, args.bootstrap_samples, args.seed
+            ),
+            "evidence_better": sum(
+                right > left for left, right in zip(budget_scores, evidence_scores)
+            ),
+            "budget_better": sum(
+                left > right for left, right in zip(budget_scores, evidence_scores)
+            ),
+            "answer_changed": len(evidence_budget_changed),
+            "changed_sample_ids": evidence_budget_changed,
         },
         "certificate_gate": {
             "real_stable": sum(bool(gate.get("real_stable")) for gate in gates),
