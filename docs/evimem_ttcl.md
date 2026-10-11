@@ -90,7 +90,12 @@ python core/mm_main.py --config core/config/mm_qwen25vl.yaml
 ```
 
 Supported methods are `zero_shot`, `cot`, `self_consistency`,
-`budget_matched`, `direct_ttcl`, `evidence_only`, and `evimem`. All evidence,
+`budget_matched`, `contrastive_budget`, `contrastive_evidence`, `direct_ttcl`,
+`evidence_only`, and `evimem`. `contrastive_evidence` invokes a position-swapped
+two-view adjudicator only when candidate answers disagree; it falls back to
+majority voting unless both views select the same evidence-supported answer and
+at least one view explicitly contradicts the alternative. `contrastive_budget`
+runs the identical calls but discards the adjudicator decision. All evidence,
 augmentation, memory, and retrieval-modality ablations are config switches.
 The full method only writes experiences whose answer verdict and every claim
 are `entailed`. RRF retrieval is also relevance-gated: rules require calibrated

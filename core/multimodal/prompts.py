@@ -17,6 +17,20 @@ Return JSON only with this schema:
 {"text":"claim","status":"entailed|contradicted|insufficient",
 "evidence":"short visible evidence or reason"}],"rationale":"short summary"}."""
 
+CONTRASTIVE_VERIFY_SYSTEM = """You are a contrastive multimodal evidence
+adjudicator, not an answer generator. Compare exactly the two proposed answers
+against the supplied image, question, context, and options. Treat an absent
+visual fact as insufficient rather than inventing it. Ignore how frequently an
+answer was proposed and do not favor candidate position. Choose a candidate
+only when the available evidence entails it and contradicts or leaves the
+other candidate insufficient; otherwise choose undecidable. Return JSON only:
+{"winner":"candidate_1|candidate_2|undecidable",
+"candidate_1_status":"entailed|contradicted|insufficient",
+"candidate_2_status":"entailed|contradicted|insufficient",
+"decisive_evidence":["short image or question evidence"],
+"counterevidence":["short contradiction or missing-evidence statement"],
+"rationale":"short comparison"}."""
+
 DISTILL_SYSTEM = """Distill reusable reasoning guidance from a contrastive
 visual QA experience. Never state that the proposed answer is ground truth.
 Return JSON only:

@@ -13,7 +13,11 @@ import numpy as np
 from PIL import Image
 
 from core.mm_main import apply_overrides
-from core.multimodal.client import build_multimodal_content, parse_evidence_verdict
+from core.multimodal.client import (
+    build_multimodal_content,
+    parse_contrastive_verdict,
+    parse_evidence_verdict,
+)
 from core.multimodal.answers import normalize_answer
 from core.multimodal.datasets import load_local_dataset
 from core.multimodal.embeddings import HashMultimodalEmbedder
@@ -194,6 +198,25 @@ class EvidenceScoringTests(unittest.TestCase):
         self.assertTrue(verdict.parse_error)
         self.assertEqual(verdict.answer_status, "insufficient")
 
+    def test_contrastive_verdict_parser_is_fail_closed(self):
+        valid = parse_contrastive_verdict(
+            '{"winner":"candidate_2","candidate_1_status":"contradicted",'
+            '"candidate_2_status":"entailed","decisive_evidence":["visible mark"],'
+            '"counterevidence":["candidate 1 conflicts"],"rationale":"direct"}'
+        )
+        self.assertEqual(valid.winner, "candidate_2")
+        self.assertFalse(valid.parse_error)
+        malformed = parse_contrastive_verdict('{"winner":"answer_b"}')
+        self.assertEqual(malformed.winner, "undecidable")
+        self.assertTrue(malformed.parse_error)
+        wrong_evidence_type = parse_contrastive_verdict(
+            '{"winner":"candidate_1","candidate_1_status":"entailed",'
+            '"candidate_2_status":"contradicted","decisive_evidence":"visible mark",'
+            '"counterevidence":[]}'
+        )
+        self.assertTrue(wrong_evidence_type.parse_error)
+        self.assertEqual(wrong_evidence_type.decisive_evidence, [])
+
 
 class MemoryTests(unittest.TestCase):
     def _experience(self, index: int, image: str) -> Experience:
@@ -345,6 +368,45 @@ class MetricsTests(unittest.TestCase):
 
 
 class RunnerTests(unittest.TestCase):
+    def test_contrastive_adjudication_is_position_invariant(self):
+        class ContrastiveFake(FakeVLM):
+            def generate(self, system_prompt, user_text, image_paths, sampling):
+                if "contrastive multimodal evidence" not in system_prompt:
+                    return super().generate(system_prompt, user_text, image_paths, sampling)
+                winner = "candidate_2" if "Candidate 1 proposed answer: a" in user_text else "candidate_1"
+                first = "contradicted" if winner == "candidate_2" else "entailed"
+                second = "entailed" if winner == "candidate_2" else "contradicted"
+                content = json.dumps({
+                    "winner": winner,
+                    "candidate_1_status": first,
+                    "candidate_2_status": second,
+                    "decisive_evidence": ["visible feature"],
+                    "counterevidence": ["other answer conflicts"],
+                    "rationale": "same winner after swapping positions",
+                })
+                return GenerationResponse(content, 10, 3, [], 0.01)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            image = root / "image.png"
+            Image.new("RGB", (8, 8), "red").save(image)
+            sample = MultimodalSample(
+                "q1", "scienceqa_img", "Which?", (str(image),), ("red", "blue")
+            )
+            runner = EviMemRunner(
+                ContrastiveFake(), EvidenceMemory(HashMultimodalEmbedder()), root / "run",
+                method="contrastive_evidence",
+            )
+            candidates = [candidate(f"a{i}", "A") for i in range(4)] + [
+                candidate("b1", "B"), candidate("b2", "B")
+            ]
+            decision, records = runner._contrastive_adjudication(
+                sample, candidates, 0, (str(image),)
+            )
+            self.assertEqual(decision.answer, "b")
+            self.assertTrue(decision.eligible_for_memory)
+            self.assertEqual(len(records), 2)
+
     def test_memory_intervention_keeps_three_clean_anchor_trajectories(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

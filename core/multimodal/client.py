@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Mapping, Optional, Protocol, Sequence
 from openai import OpenAI
 
 from .schema import (
+    ContrastiveEvidenceVerdict,
     EvidenceClaim,
     EvidenceVerdict,
     GenerationResponse,
@@ -142,4 +143,50 @@ def parse_evidence_verdict(text: str) -> EvidenceVerdict:
     except (ValueError, TypeError, json.JSONDecodeError):
         return EvidenceVerdict(
             answer_status="insufficient", parse_error=True, rationale=text[:500]
+        )
+
+
+def parse_contrastive_verdict(text: str) -> ContrastiveEvidenceVerdict:
+    allowed_statuses = {"entailed", "contradicted", "insufficient"}
+    allowed_winners = {"candidate_1", "candidate_2", "undecidable"}
+    try:
+        payload = parse_json_object(text)
+        winner = str(payload.get("winner", "undecidable")).lower()
+        first = str(payload.get("candidate_1_status", "insufficient")).lower()
+        second = str(payload.get("candidate_2_status", "insufficient")).lower()
+        evidence_payload = payload.get("decisive_evidence", [])
+        counterevidence_payload = payload.get("counterevidence", [])
+        malformed = (
+            winner not in allowed_winners
+            or first not in allowed_statuses
+            or second not in allowed_statuses
+            or not isinstance(evidence_payload, list)
+            or not isinstance(counterevidence_payload, list)
+        )
+        evidence = [
+            str(item).strip()
+            for item in evidence_payload
+            if str(item).strip()
+        ] if isinstance(evidence_payload, list) else []
+        counterevidence = [
+            str(item).strip()
+            for item in counterevidence_payload
+            if str(item).strip()
+        ] if isinstance(counterevidence_payload, list) else []
+        return ContrastiveEvidenceVerdict(
+            winner=winner if winner in allowed_winners else "undecidable",  # type: ignore[arg-type]
+            candidate_1_status=first if first in allowed_statuses else "insufficient",  # type: ignore[arg-type]
+            candidate_2_status=second if second in allowed_statuses else "insufficient",  # type: ignore[arg-type]
+            decisive_evidence=evidence,
+            counterevidence=counterevidence,
+            rationale=str(payload.get("rationale", "")),
+            parse_error=malformed,
+        )
+    except (ValueError, TypeError, json.JSONDecodeError):
+        return ContrastiveEvidenceVerdict(
+            winner="undecidable",
+            candidate_1_status="insufficient",
+            candidate_2_status="insufficient",
+            rationale=text[:500],
+            parse_error=True,
         )

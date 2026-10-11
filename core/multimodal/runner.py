@@ -14,11 +14,17 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from .answers import normalize_answer
-from .client import VLMBackend, parse_evidence_verdict, parse_json_object
+from .client import (
+    VLMBackend,
+    parse_contrastive_verdict,
+    parse_evidence_verdict,
+    parse_json_object,
+)
 from .image_ops import make_blank_views, make_fidelity_views, sha256_file
 from .memory import EvidenceMemory, RetrievalBundle
 from .prompts import (
     ANSWER_SYSTEM,
+    CONTRASTIVE_VERIFY_SYSTEM,
     DISTILL_SYSTEM,
     PARAPHRASE_SYSTEM,
     VERIFY_SYSTEM,
@@ -44,6 +50,8 @@ METHODS = {
     "cot",
     "self_consistency",
     "budget_matched",
+    "contrastive_budget",
+    "contrastive_evidence",
     "direct_ttcl",
     "evidence_only",
     "evimem",
@@ -156,7 +164,15 @@ class EviMemRunner:
         self.total_completion_tokens = 0
         self.total_latency = 0.0
         self._prompt_hash = _sha256_text(
-            "\n".join([ANSWER_SYSTEM, PARAPHRASE_SYSTEM, VERIFY_SYSTEM, DISTILL_SYSTEM])
+            "\n".join(
+                [
+                    ANSWER_SYSTEM,
+                    PARAPHRASE_SYSTEM,
+                    VERIFY_SYSTEM,
+                    CONTRASTIVE_VERIFY_SYSTEM,
+                    DISTILL_SYSTEM,
+                ]
+            )
         )
 
     def _sampling(self, temperature: float, offset: int, max_tokens: Optional[int] = None) -> SamplingConfig:
@@ -314,6 +330,132 @@ class EviMemRunner:
             )
             verdicts[answer] = parse_evidence_verdict(response.content)
         return verdicts
+
+    def _contrastive_adjudication(
+        self,
+        sample: MultimodalSample,
+        candidates: Sequence[Candidate],
+        sample_index: int,
+        fidelity_images: Sequence[str],
+    ) -> Tuple[SelectionDecision, List[Dict[str, Any]]]:
+        majority = _majority_decision(candidates)
+        groups: List[Tuple[str, List[Candidate]]] = []
+        for candidate in candidates:
+            group = next(
+                (item for item in groups if item[0] == candidate.normalized_answer),
+                None,
+            )
+            if group is None:
+                groups.append((candidate.normalized_answer, [candidate]))
+            else:
+                group[1].append(candidate)
+        if len(groups) < 2:
+            majority.eligible_for_memory = False
+            majority.reason += "; contrastive=unanimous_no_negative"
+            return majority, []
+
+        groups.sort(key=lambda item: (-len(item[1]), candidates.index(item[1][0])))
+        first_answer, first_members = groups[0]
+        second_answer, second_members = groups[1]
+        answer_metadata = {**sample.metadata, "choices": list(sample.choices)}
+        question = format_question(sample.question, list(sample.choices), answer_metadata)
+        views = [
+            ("original", sample.image_paths, first_answer, second_answer),
+            (
+                "fidelity_swapped",
+                fidelity_images or sample.image_paths,
+                second_answer,
+                first_answer,
+            ),
+        ]
+        resolved: List[str] = []
+        records: List[Dict[str, Any]] = []
+        loser_contradicted = False
+        valid_views = True
+        for offset, (view, images, candidate_1, candidate_2) in enumerate(views):
+            prompt = (
+                f"Question and options:\n{question}\n\n"
+                f"Candidate 1 proposed answer: {candidate_1}\n"
+                f"Candidate 2 proposed answer: {candidate_2}"
+            )
+            response = self._generate(
+                CONTRASTIVE_VERIFY_SYSTEM,
+                prompt,
+                images,
+                self._sampling(0.0, sample_index * 100 + 60 + offset, max_tokens=384),
+            )
+            verdict = parse_contrastive_verdict(response.content)
+            slot_to_answer = {
+                "candidate_1": candidate_1,
+                "candidate_2": candidate_2,
+            }
+            winner_status = (
+                verdict.candidate_1_status
+                if verdict.winner == "candidate_1"
+                else verdict.candidate_2_status
+                if verdict.winner == "candidate_2"
+                else "insufficient"
+            )
+            loser_status = (
+                verdict.candidate_2_status
+                if verdict.winner == "candidate_1"
+                else verdict.candidate_1_status
+                if verdict.winner == "candidate_2"
+                else "insufficient"
+            )
+            view_valid = (
+                not verdict.parse_error
+                and verdict.winner in slot_to_answer
+                and winner_status == "entailed"
+                and loser_status in {"contradicted", "insufficient"}
+                and bool(verdict.decisive_evidence)
+            )
+            if view_valid:
+                resolved.append(slot_to_answer[verdict.winner])
+                loser_contradicted = loser_contradicted or loser_status == "contradicted"
+            else:
+                valid_views = False
+            records.append(
+                {
+                    "view": view,
+                    "candidate_1": candidate_1,
+                    "candidate_2": candidate_2,
+                    "verdict": asdict(verdict),
+                    "resolved_answer": slot_to_answer.get(verdict.winner),
+                    "valid": view_valid,
+                }
+            )
+
+        stable = (
+            valid_views
+            and len(resolved) == 2
+            and resolved[0] == resolved[1]
+            and loser_contradicted
+        )
+        if not stable:
+            majority.eligible_for_memory = False
+            majority.reason += "; contrastive=fallback_unstable"
+            return majority, records
+
+        winner = resolved[0]
+        winner_group = next(item for item in groups if item[0] == winner)
+        loser_answer = second_answer if winner == first_answer else first_answer
+        loser_group = next(item for item in groups if item[0] == loser_answer)
+        support = len(winner_group[1]) / len(candidates)
+        return (
+            SelectionDecision(
+                answer=winner,
+                representative=winner_group[1][0],
+                scores=ComponentScores(support, 1.0, 1.0),
+                borda_score=2.0,
+                component_wins=3,
+                eligible_for_memory=True,
+                negative_answer=loser_answer,
+                negative_representative=loser_group[1][0],
+                reason="contrastive=stable_two_view; evidence_gate=True; memory=accepted",
+            ),
+            records,
+        )
 
     def _distill(
         self,
@@ -492,6 +634,7 @@ class EviMemRunner:
             before_memory_size = len(self.memory)
             memory_context, retrieved = self._memory_context(sample, sample_index)
 
+            contrastive_verdicts: List[Dict[str, Any]] = []
             if self.method in {"zero_shot", "cot"}:
                 question = sample.question
                 if self.method == "cot":
@@ -533,6 +676,17 @@ class EviMemRunner:
                     counterfactual_answers = []
                     verdicts = {}
                     decision = _majority_decision(candidates)
+                elif self.method in {"contrastive_budget", "contrastive_evidence"}:
+                    counterfactual_answers = []
+                    verdicts = {}
+                    contrastive_decision, contrastive_verdicts = self._contrastive_adjudication(
+                        sample, candidates, sample_index, fidelity
+                    )
+                    decision = (
+                        _majority_decision(candidates)
+                        if self.method == "contrastive_budget"
+                        else contrastive_decision
+                    )
                 else:
                     counterfactual_answers = (
                         self._counterfactual_answers(sample, sample_index, blanks, previous_images)
@@ -612,6 +766,7 @@ class EviMemRunner:
                     for item in candidates
                 ],
                 "counterfactual_answers": counterfactual_answers,
+                "contrastive_verdicts": contrastive_verdicts,
                 "retrieved_experience_ids": [item.experience.experience_id for item in retrieved.episodes],
                 "retrieved_episodes": [
                     {

@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Literal, Optional, Sequence
 
 
 EvidenceStatus = Literal["entailed", "contradicted", "insufficient"]
+ContrastiveWinner = Literal["candidate_1", "candidate_2", "undecidable"]
 
 
 @dataclass(frozen=True)
@@ -101,6 +102,17 @@ class EvidenceVerdict:
         values = {"entailed": 1.0, "insufficient": 0.5, "contradicted": 0.0}
         parts = [values[self.answer_status]] + [values[c.status] for c in self.claims]
         return sum(parts) / len(parts)
+
+
+@dataclass
+class ContrastiveEvidenceVerdict:
+    winner: ContrastiveWinner
+    candidate_1_status: EvidenceStatus
+    candidate_2_status: EvidenceStatus
+    decisive_evidence: List[str] = field(default_factory=list)
+    counterevidence: List[str] = field(default_factory=list)
+    rationale: str = ""
+    parse_error: bool = False
 
 
 @dataclass(frozen=True)
