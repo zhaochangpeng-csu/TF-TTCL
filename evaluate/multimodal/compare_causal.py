@@ -22,15 +22,19 @@ from evaluate.multimodal.metrics import (
 )
 
 
-def validate_completed_runs(paths: dict[str, Path]) -> tuple[
+def validate_completed_runs(paths: dict[str, Path], family: str = "causal") -> tuple[
     list[str], dict[str, dict[str, dict[str, Any]]], dict[str, dict[str, Any]]
 ]:
     """Require a completed, matched stream before any label-loading call."""
+    if family not in {"causal", "shared"}:
+        raise ValueError("Unknown certificate family")
     expected_methods = {
         "greedy": "zero_shot",
-        "causal_budget": "causal_budget",
-        "causal_evidence": "causal_evidence",
+        f"{family}_budget": f"{family}_budget",
+        f"{family}_evidence": f"{family}_evidence",
     }
+    if set(paths) != set(expected_methods):
+        raise ValueError("Scoring requires all three inference arms")
     manifests = {name: manifest_for(path) for name, path in paths.items()}
     for name, manifest in manifests.items():
         if manifest.get("status") != "completed":
@@ -50,9 +54,15 @@ def validate_completed_runs(paths: dict[str, Path]) -> tuple[
 def compare_runs(
     paths: dict[str, Path], labels: str, dataset: str,
     image_root: str | None = None, bootstrap_samples: int = 10000, seed: int = 0,
+    family: str = "causal",
 ) -> dict[str, Any]:
-    order, rows, manifests = validate_completed_runs(paths)
-    audit = audit_runs(paths["causal_budget"], paths["causal_evidence"])
+    order, rows, manifests = validate_completed_runs(paths, family)
+    budget_name, evidence_name = f"{family}_budget", f"{family}_evidence"
+    if family == "shared":
+        from evaluate.multimodal.audit_shared import audit_runs as shared_audit
+        audit = shared_audit(paths[budget_name], paths[evidence_name])
+    else:
+        audit = audit_runs(paths[budget_name], paths[evidence_name])
     targets = {
         example.target.sample_id: example.target
         for example in load_local_dataset(labels, dataset, image_root)
@@ -82,8 +92,8 @@ def compare_runs(
         }
     comparisons = {}
     for baseline, candidate in [
-        ("greedy", "causal_budget"), ("greedy", "causal_evidence"),
-        ("causal_budget", "causal_evidence"),
+        ("greedy", budget_name), ("greedy", evidence_name),
+        (budget_name, evidence_name),
     ]:
         left, right = scores[baseline], scores[candidate]
         delta, low, high = paired_bootstrap_delta_ci(left, right, bootstrap_samples, seed)
@@ -103,11 +113,11 @@ def compare_runs(
             "regressed": sum(b < a for a, b in zip(left, right)),
             "answer_changes": changes,
         }
-    budget = comparisons["causal_evidence_minus_causal_budget"]
+    budget = comparisons[f"{evidence_name}_minus_{budget_name}"]
     selected = [
-        scores["causal_evidence"][i]
+        scores[evidence_name][i]
         for i, sample_id in enumerate(order)
-        if rows["causal_evidence"][sample_id].get("causal_certificate", {}).get("gate_passed")
+        if rows[evidence_name][sample_id].get(f"{family}_certificate", {}).get("gate_passed")
     ]
     return {
         "dataset": dataset, "n": len(order), "runs": aggregate,
@@ -115,7 +125,7 @@ def compare_runs(
         "selective_accuracy": sum(selected) / len(selected) if selected else None,
         "continue_to_validation": bool(
             audit["protocol_ok"]
-            and aggregate["causal_evidence"]["accuracy"] > aggregate["greedy"]["accuracy"]
+            and aggregate[evidence_name]["accuracy"] > aggregate["greedy"]["accuracy"]
             and budget["delta"] > 0
         ),
     }
@@ -131,11 +141,13 @@ def main() -> None:
     parser.add_argument("--image-root")
     parser.add_argument("--bootstrap-samples", type=int, default=10000)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--family", choices=["causal", "shared"], default="causal")
     args = parser.parse_args()
     result = compare_runs(
-        {"greedy": Path(args.greedy), "causal_budget": Path(args.budget),
-         "causal_evidence": Path(args.evidence)},
+        {"greedy": Path(args.greedy), f"{args.family}_budget": Path(args.budget),
+         f"{args.family}_evidence": Path(args.evidence)},
         args.labels, args.dataset, args.image_root, args.bootstrap_samples, args.seed,
+        args.family,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 

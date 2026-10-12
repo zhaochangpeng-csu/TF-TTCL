@@ -54,6 +54,10 @@ from .schema import (
     SelectionDecision,
 )
 from .scoring import select_with_evidence
+from .shared_evidence import (
+    MAGNET_FACT_SYSTEM, THERMAL_FACT_SYSTEM, SHARED_PROMPTS, VERSION as SHARED_VERSION,
+    assess_certificate, parse_observation, route_operator,
+)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -68,6 +72,8 @@ METHODS = {
     "certificate_evidence",
     "causal_budget",
     "causal_evidence",
+    "shared_budget",
+    "shared_evidence",
     "direct_ttcl",
     "evidence_only",
     "evimem",
@@ -286,6 +292,11 @@ class EviMemRunner:
                 ]
             )
         )
+        if self.method in {"shared_budget", "shared_evidence"}:
+            self._prompt_hash = _sha256_text(
+                self._prompt_hash + "\n" + "\n".join(SHARED_PROMPTS)
+                + "\n" + sha256_file(str(Path(__file__).with_name("shared_evidence.py")))
+            )
 
     def _sampling(self, temperature: float, offset: int, max_tokens: Optional[int] = None) -> SamplingConfig:
         return SamplingConfig(
@@ -777,6 +788,62 @@ class EviMemRunner:
         )
         return decision, audit
 
+    def _shared_adjudication(
+        self, sample: MultimodalSample, candidates: Sequence[Candidate],
+        sample_index: int, fidelity_images: Sequence[str],
+        blank_images: Sequence[str], mismatch_images: Sequence[str],
+    ) -> Tuple[SelectionDecision, Dict[str, Any]]:
+        greedy = _greedy_decision(candidates)
+        operator = route_operator(sample.question, sample.choices)
+        audit: Dict[str, Any] = {
+            "version": SHARED_VERSION, "operator": operator,
+            "greedy_answer": greedy.answer,
+            "candidate_disagreement": len({c.normalized_answer for c in candidates}) > 1,
+            "facts_stable": False, "counterfactual_drop": False,
+            "gate_passed": False, "changed_from_greedy": False,
+            "fallback_reason": "unsupported_task", "observations": [],
+        }
+        if operator is None or len(sample.image_paths) != 1:
+            if operator is not None:
+                audit["fallback_reason"] = "requires_single_image"
+            return greedy, audit
+        system = MAGNET_FACT_SYSTEM if operator == "facing_poles" else THERMAL_FACT_SYSTEM
+        specs = [("original", sample.image_paths),
+                 ("fidelity", fidelity_images or sample.image_paths),
+                 ("blank", blank_images)]
+        if mismatch_images:
+            specs.append(("history_mismatch", mismatch_images))
+        parsed = []
+        for offset, (view, images) in enumerate(specs):
+            response = self._generate(
+                system, "Transcribe only the visible observations in the specified JSON schema.",
+                images[:1], self._sampling(0.0, sample_index * 100 + 86 + offset, max_tokens=256),
+            )
+            observation = parse_observation(response.content, operator)
+            parsed.append(observation)
+            audit["observations"].append({
+                "view": view, "raw_response": response.content, "parsed": observation,
+                "image_hashes": [sha256_file(p) for p in images[:1]],
+                "question_exposed": False, "choices_exposed": False,
+                "candidate_answers_exposed": False,
+            })
+        audit.update(assess_certificate(
+            operator, parsed, sample.choices, [c.normalized_answer for c in candidates],
+        ))
+        if not audit["gate_passed"]:
+            greedy.reason += f"; shared={audit['fallback_reason']}"
+            return greedy, audit
+        winner = audit["computed_answer"]
+        audit["changed_from_greedy"] = winner != greedy.answer
+        representative = next(c for c in candidates if c.normalized_answer == winner)
+        support = sum(c.normalized_answer == winner for c in candidates) / len(candidates)
+        return SelectionDecision(
+            answer=winner, representative=representative,
+            scores=ComponentScores(support, 1.0, 1.0), borda_score=2.0,
+            component_wins=2, eligible_for_memory=False,
+            reason="shared=stable_observations_executable_reasoning; memory=disabled",
+        ), audit
+
     def _causal_adjudication(
         self,
         sample: MultimodalSample,
@@ -1203,6 +1270,7 @@ class EviMemRunner:
             contrastive_verdicts: List[Dict[str, Any]] = []
             evidence_certificate: Dict[str, Any] = {}
             causal_certificate: Dict[str, Any] = {}
+            shared_certificate: Dict[str, Any] = {}
             if self.method in {"zero_shot", "cot"}:
                 question = sample.question
                 if self.method == "cot":
@@ -1271,6 +1339,18 @@ class EviMemRunner:
                         decision.reason += "; budget_control=certificate_ignored"
                     else:
                         decision = certificate_decision
+                elif self.method in {"shared_budget", "shared_evidence"}:
+                    counterfactual_answers = []
+                    verdicts = {}
+                    shared_decision, shared_certificate = self._shared_adjudication(
+                        sample, candidates, sample_index, fidelity, blanks, previous_images,
+                    )
+                    if self.method == "shared_budget":
+                        decision = _majority_decision(candidates)
+                        decision.eligible_for_memory = False
+                        decision.reason += "; budget_control=shared_observations_ignored"
+                    else:
+                        decision = shared_decision
                 elif self.method in {"causal_budget", "causal_evidence"}:
                     counterfactual_answers = []
                     verdicts = {}
@@ -1370,6 +1450,7 @@ class EviMemRunner:
                 "contrastive_verdicts": contrastive_verdicts,
                 "evidence_certificate": evidence_certificate,
                 "causal_certificate": causal_certificate,
+                "shared_certificate": shared_certificate,
                 "retrieved_experience_ids": [item.experience.experience_id for item in retrieved.episodes],
                 "retrieved_episodes": [
                     {
