@@ -112,6 +112,19 @@ class TokenBudgetTests(unittest.TestCase):
                     compare_four(paths, "NEVER_OPEN")
                 extra.assert_not_called()
                 original.assert_not_called()
+            # All shared computations complete, but the fourth arm is still running.
+            for name, method in (("greedy", "zero_shot"), ("shared_budget", "shared_budget"),
+                                 ("shared_evidence", "shared_evidence")):
+                root = paths[name].parent
+                (root / "manifest.json").write_text(json.dumps({"status": "completed", "method": method,
+                                                               "processed": 1}))
+                paths[name].write_text('{"sample_id":"x"}\n')
+            with patch("evaluate.multimodal.compare_typed.load_local_dataset") as extra, \
+                 patch("evaluate.multimodal.compare_causal.load_local_dataset") as original:
+                with self.assertRaisesRegex(ValueError, "Independent budget run incomplete"):
+                    compare_four(paths, "NEVER_OPEN", expected_n=1)
+                extra.assert_not_called()
+                original.assert_not_called()
 
 
 if __name__ == "__main__":

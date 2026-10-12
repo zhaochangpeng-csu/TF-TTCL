@@ -105,13 +105,25 @@ class TypedEvidenceTests(unittest.TestCase):
         choices = ["each bottle . . . the surroundings", "the surroundings . . . each bottle"]
         program = compile_program("During this time, thermal energy was transferred from () to ().", choices)
         raw = {"overflow": False, "columns": ["Initial temperature (°C)", "Final temperature (°C)"],
-               "rows": [{"label": "Bottle 1", "values": [2.2, 4.9]}]}
+               "rows": [{"label": "Bottle 1", "values": ["2.2", "4.9"]}]}
         observation = parse_observation(json.dumps(raw), program)
         self.assertEqual(execute_program(program, observation["facts"], choices)["answer"], "b")
         raw["rows"][0]["values"][1] = None
         observation = parse_observation(json.dumps(raw), program)
         self.assertFalse(observation["parse_error"])
         self.assertFalse(observation["complete"])
+
+    def test_numeric_cell_lexemes_are_bounded_and_never_rounded(self):
+        program = {"operator": "temperature_delta", "modality": "table", "body": "each bottle"}
+        raw = {"overflow": False, "columns": ["Initial temperature (°C)", "Final temperature (°C)"],
+               "rows": [{"label": "Bottle", "values": ["18", "26"]}]}
+        for value in (18, "1.234567890123456789", "1000000", "NaN", "1e3", "18 °C"):
+            raw["rows"][0]["values"][0] = value
+            self.assertTrue(parse_observation(json.dumps(raw), program)["parse_error"])
+        raw["rows"][0]["values"][0] = "18.0000"
+        obs = parse_observation(json.dumps(raw), program)
+        self.assertTrue(obs["complete"])
+        self.assertEqual(obs["facts"]["rows"][0]["values"], [18.0, 26.0])
 
     def test_extrema_ties_count_unknown_filters_and_overflow(self):
         p = compile_program("Which city has the lowest temperature?", ["X", "Y"])
@@ -141,9 +153,11 @@ class TypedEvidenceTests(unittest.TestCase):
             model_name = "fake"
             def __init__(self):
                 self.calls = []
+                self.length = False
             def generate(self, system, text, images, sampling):
                 self.calls.append((system, text, sampling))
-                return GenerationResponse(letters(() if "blank" in images[0] else ("S", "N", "N", "S"), vertical=True))
+                return GenerationResponse(letters(() if "blank" in images[0] else ("S", "N", "N", "S"), vertical=True),
+                                          finish_reason="length" if self.length else "stop")
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -168,6 +182,11 @@ class TypedEvidenceTests(unittest.TestCase):
                 self.assertNotIn("repel", system + text)
                 self.assertEqual(sampling.output_schema, LETTER_SCHEMA)
                 self.assertEqual(sampling.max_tokens, 512)
+            model.length = True
+            decision, cert = runner._shared_adjudication(sample, candidates, 0, [str(real)], [str(blank)], ())
+            self.assertEqual(decision.answer, "a")
+            self.assertFalse(cert["gate_passed"])
+            self.assertTrue(all(not o["parsed"]["complete"] for o in cert["observations"]))
 
 
 if __name__ == "__main__":

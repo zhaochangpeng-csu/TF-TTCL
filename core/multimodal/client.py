@@ -113,6 +113,7 @@ class OpenAIVLMClient:
             completion_tokens=usage.completion_tokens if usage else 0,
             logprobs=token_logprobs,
             latency_seconds=latency,
+            finish_reason=getattr(choice, "finish_reason", None),
         )
 
 

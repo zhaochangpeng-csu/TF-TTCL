@@ -1,7 +1,8 @@
-# Bounded shared observations and executable reasoning (typed v3)
+# Bounded shared observations and executable reasoning (typed v3 / v3.1)
 
-Status: 60 tests and both label-free calibration smokes passed; no development
-accuracy has been read for this version. This is a limited hypothesis probe, not a
+Status: v3's full format audit failed; v3.1 has 61 passing tests and passed
+100-item label-free recalibration. No development accuracy has been read for either
+version. This is a limited hypothesis probe, not a
 general verifier or evidence of top-conference novelty. The v2 pilot is
 preserved in [its report](results/scienceqa_shared_evidence_seed0.md).
 
@@ -17,6 +18,25 @@ coordinate bounds, finite numbers and maximum array/string lengths. Overflow
 and unreadable operands are semantic abstentions, not successful certificates.
 The observation model still sees no question, context, options, candidate
 answers, or correct answer. It transcribes the first image only.
+
+V3's numeric JSON cells had no bound on the number of decimal digits. On the
+full 400-item format-only run, a historical precipitation-chart mismatch for
+8817 produced endlessly repeated decimal digits, reached the 1024-token cap,
+and left unclosed JSON. The gate fell back; the strict audit failed and the
+launcher exited before the independent budget arm. Its audit is preserved in
+[the unscored format-failure artifact](results/scienceqa_typed_v3_format_failure.json).
+There were 22 supported tasks, 88 observations, one parse failure, and no
+exposure, memory or trace mismatch. **No labels or accuracy were read.**
+
+V3.1 repairs this observed lexical failure, not an accuracy failure: numeric
+cells are decimal strings constrained to at most six integer and four decimal
+digits (12 characters including sign/point), or null. Out-of-format values must
+abstain, not round. Parse validated strings to finite floats before execution.
+Clarify that numeric headers exclude the row-label header and row lengths must
+match; calibration 3722 had previously mixed the `Bottle` label header into
+numeric columns. Record API finish reasons and mark any token-limit response
+incomplete even if its JSON can be parsed. Operators, geometry thresholds,
+candidate generation and decision policy are otherwise unchanged.
 
 Frozen lexical compilation supports four small operator families:
 
@@ -88,6 +108,25 @@ policy in a git commit. Then prepare **400 new items at ranks 1300–1699** in
 the new stream to expand operators and do not change prompts by accuracy.
 Only after all four full runs are completed and matched may labels be read.
 
+For v3.1, re-run the **100-item unscored calibration flow**, which includes the
+original first-20 smoke and both eligible tasks with realistic historical
+mismatches. Then commit/freeze again and re-run the same 400 **label-unread**
+development inputs in a new versioned artifact directory. V3.1 used v3's
+unlabeled full-flow format failure as a diagnostic; it is not a completely
+untouched input holdout, and must not be described as such. No new operators
+are chosen from this flow and no prompt change is based on correctness.
+Final benchmark confirmation must use different, frozen evaluation inputs.
+
+V3.1 calibration completed all four 100-item arms. Eight observation responses
+had zero parse errors, zero token-limit finishes, and two literal-empty blank
+controls. One original/fidelity fact pair was stable but its executable answer
+was absent from the six candidates; the other task had incomplete observations.
+Thus no override was made. Shared compute: 251,616 tokens; independent sampling:
+251,545 tokens (0.0282% difference), greedy: 39,583 tokens. Protocol and four-arm
+completion checks passed; no calibration accuracy was read. GPU 2 returned to
+2 MiB / 0% utilization on launcher exit. These are workflow checks, not positive
+accuracy evidence.
+
 ## Four controls and accounting
 
 1. `zero_shot`: standalone original greedy.
@@ -141,7 +180,7 @@ RUN_TAG=typed_v3_seed0_calibration_smoke20 SMOKE_LIMIT=20 RUN_GREEDY=1 \
   bash scripts/run_scienceqa_causal_smoke.sh
 
 CONFIG_PATH=core/config/mm_scienceqa_train_typed.yaml METHOD_FAMILY=shared \
-RUN_TAG=typed_v3_seed0_dev400 SMOKE_LIMIT=400 RUN_GREEDY=1 RUN_EFFICIENT=1 \
+RUN_TAG=typed_v3p1_seed0_dev400 SMOKE_LIMIT=400 RUN_GREEDY=1 RUN_EFFICIENT=1 \
   bash scripts/run_scienceqa_causal_smoke.sh
 ```
 

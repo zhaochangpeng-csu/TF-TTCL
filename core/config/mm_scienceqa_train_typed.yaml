@@ -2,7 +2,7 @@ experiment:
   dataset: scienceqa_img
   data_path: data/multimodal/scienceqa_modelscope_train/dev400_typed.inference.jsonl
   image_root: data/multimodal/scienceqa_modelscope_train
-  output_dir: core/exp_res/mm/scienceqa_train/qwen25vl/typed_v3_seed0_dev400
+  output_dir: core/exp_res/mm/scienceqa_train/qwen25vl/typed_v3p1_seed0_dev400
   method: shared_evidence
   limit: null
   order: forward
@@ -17,7 +17,7 @@ model:
   timeout: 300
   request_logprobs: false
 evidence:
-  protocol: typed_v3
+  protocol: typed_v3_1
 memory:
   embedder: hash
   dimensions: 256

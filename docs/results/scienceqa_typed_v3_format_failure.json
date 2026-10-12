@@ -1,0 +1,41 @@
+{
+  "n": 400,
+  "manifests_completed": true,
+  "matched_configuration": true,
+  "supported_tasks": {
+    "facing_poles": 15,
+    "temperature_delta": 6,
+    "table_extreme": 1
+  },
+  "candidate_disagreements": 26,
+  "supported_disagreements": 7,
+  "facts_stable": 15,
+  "counterfactual_drop": 15,
+  "gate_passed": 12,
+  "changed_from_greedy": 4,
+  "fallback_reasons": {
+    "unsupported_task": 378,
+    "computed_answer_not_proposed": 3,
+    "malformed_observation": 1,
+    "incomplete_or_overflow_observation": 5,
+    "missing_or_unstable_real_facts": 1
+  },
+  "parse_error_responses": 1,
+  "exposed_observation_records": 0,
+  "observation_diagnostics": {
+    "responses": 88,
+    "incomplete_responses": 15,
+    "literal_empty_blanks": 22,
+    "nonempty_or_invalid_blanks": 0,
+    "at_token_limit": 1
+  },
+  "policy_error_ids": [],
+  "memory_leak_ids": [],
+  "budget_audit": {
+    "call_trace_mismatches": [],
+    "budget_total_tokens": 926786,
+    "evidence_total_tokens": 926786,
+    "total_token_relative_difference": 0.0
+  },
+  "protocol_ok": false
+}

@@ -11,7 +11,7 @@ import math
 import re
 from typing import Any, Sequence
 
-VERSION = "typed_v3_bounded_relations_counts_tables"
+VERSION = "typed_v3_1_bounded_decimal_cells"
 
 
 def obj(properties: dict) -> dict:
@@ -20,6 +20,8 @@ def obj(properties: dict) -> dict:
 
 
 COORD = {"type": "integer", "minimum": 0, "maximum": 1000}
+DECIMAL_CELL = {"type": ["string", "null"], "maxLength": 12,
+                "pattern": r"^-?[0-9]{1,6}(\.[0-9]{1,4})?$"}
 LETTER_SCHEMA = obj({"overflow": {"type": "boolean"}, "items": {
     "type": "array", "maxItems": 8,
     "items": obj({"text": {"type": "string", "pattern": "^[A-Za-z]$"},
@@ -29,7 +31,7 @@ TABLE_SCHEMA = obj({"overflow": {"type": "boolean"}, "columns": {
     "rows": {"type": "array", "maxItems": 8, "items": obj({
         "label": {"type": "string", "maxLength": 64}, "values": {
             "type": "array", "maxItems": 4,
-            "items": {"type": ["number", "null"]}}})}})
+            "items": DECIMAL_CELL}})}})
 OBJECT_SCHEMA = obj({"overflow": {"type": "boolean"}, "objects": {
     "type": "array", "maxItems": 16, "items": obj({
         "color": {"type": "string", "maxLength": 16},
@@ -48,8 +50,13 @@ truncated subset presented as complete. No interpretation or confidence."""
 TABLE_PROMPT = """Transcribe a visible numeric table in the FIRST image. No
 question, options or candidate answers are provided. Return constrained JSON:
 overflow, columns (all numeric column headers verbatim, including units), rows
-(each with label verbatim and values in column order). Do not infer missing
-values or interpret trends. Use null for unreadable numeric cells. Maximum
+(each with label verbatim and values in column order). The label column header
+is NOT a numeric column: exclude it from columns. Every row's values must have
+exactly the same length as columns. Represent numeric cells as bounded decimal
+STRINGS: at most six integer digits and four decimal digits, preserving visible
+precision, never padding/repeating digits. Do not round an out-of-format value;
+use null and overflow=true instead. Do not infer missing values or interpret
+trends. Use null for unreadable numeric cells. Maximum
 four numeric columns and eight rows; if more, or the table cannot be faithfully
 read, set overflow=true. Do not truncate a table as if complete. If no numeric
 table is visible, return overflow=false, columns=[], rows=[]. No conclusions."""
@@ -193,7 +200,9 @@ def parse_observation(text: str, program: dict) -> dict:
                         and all(v is not None for v in r["values"]) for r in rows))
             if not result["literal_empty"] and not valid:
                 result["complete"] = False
-            facts = {"columns": columns, "rows": rows} if valid else None
+            facts = {"columns": columns, "rows": [
+                {"label": r["label"], "values": [float(v) for v in r["values"]]}
+                for r in rows]} if valid else None
         else:
             objects = raw["objects"]
             result["literal_empty"] = not objects

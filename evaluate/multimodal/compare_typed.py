@@ -29,7 +29,7 @@ def validate_four(paths: dict, expected_n: int):
         raise ValueError("Independent budget stream mismatch; refusing to read labels")
     manifests["efficient_budget"], rows["efficient_budget"] = manifest, independent
     reference = manifests["shared_budget"]
-    if reference["config"].get("evidence", {}).get("protocol") != "typed_v3":
+    if reference["config"].get("evidence", {}).get("protocol") not in {"typed_v3", "typed_v3_1"}:
         raise ValueError("Not a frozen typed-v3 comparison")
     for name, other in manifests.items():
         if (namespace(other["config"]) != namespace(reference["config"])

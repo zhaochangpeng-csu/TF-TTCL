@@ -296,7 +296,7 @@ class EviMemRunner:
             )
         )
         if self.method in {"shared_budget", "shared_evidence"}:
-            if self.config_snapshot.get("evidence", {}).get("protocol") == "typed_v3":
+            if self.config_snapshot.get("evidence", {}).get("protocol") in {"typed_v3", "typed_v3_1"}:
                 self._prompt_hash = _sha256_text(
                     self._prompt_hash + "\n" + json.dumps(typed_evidence.SPECS, sort_keys=True)
                     + "\n" + sha256_file(str(Path(__file__).with_name("typed_evidence.py")))
@@ -806,7 +806,7 @@ class EviMemRunner:
         sample_index: int, fidelity_images: Sequence[str],
         blank_images: Sequence[str], mismatch_images: Sequence[str],
     ) -> Tuple[SelectionDecision, Dict[str, Any]]:
-        if self.config_snapshot.get("evidence", {}).get("protocol") == "typed_v3":
+        if self.config_snapshot.get("evidence", {}).get("protocol") in {"typed_v3", "typed_v3_1"}:
             return self._typed_adjudication(
                 sample, candidates, sample_index, fidelity_images, blank_images, mismatch_images,
             )
@@ -897,12 +897,15 @@ class EviMemRunner:
                 ), output_schema=schema),
             )
             observation = typed_evidence.parse_observation(response.content, program)
+            if response.finish_reason == "length":
+                observation["complete"] = False
             parsed.append(observation)
             audit["observations"].append({
                 "view": view, "raw_response": response.content, "parsed": observation,
                 "image_hashes": [sha256_file(p) for p in images[:1]],
                 "schema_hash": _sha256_text(json.dumps(schema, sort_keys=True)),
                 "completion_tokens": response.completion_tokens,
+                "finish_reason": response.finish_reason,
                 "max_tokens": token_limit,
                 "question_exposed": False, "choices_exposed": False,
                 "candidate_answers_exposed": False,

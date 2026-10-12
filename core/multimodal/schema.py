@@ -66,6 +66,7 @@ class GenerationResponse:
     completion_tokens: int = 0
     logprobs: List[float] = field(default_factory=list)
     latency_seconds: float = 0.0
+    finish_reason: Optional[str] = None
 
     @property
     def mean_logprob(self) -> Optional[float]:
