@@ -56,6 +56,7 @@ class SamplingConfig:
     max_tokens: int = 256
     seed: Optional[int] = None
     request_logprobs: bool = False
+    output_schema: Optional[Dict[str, Any]] = None
 
 
 @dataclass

@@ -92,6 +92,12 @@ class OpenAIVLMClient:
             request["seed"] = sampling.seed
         if sampling.request_logprobs:
             request.update({"logprobs": True, "top_logprobs": 1})
+        if sampling.output_schema is not None:
+            request["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": "observation", "strict": True,
+                                "schema": sampling.output_schema},
+            }
 
         started = time.monotonic()
         response = self.client.chat.completions.create(**request)

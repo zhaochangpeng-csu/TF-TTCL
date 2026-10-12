@@ -10,7 +10,7 @@ import subprocess
 import time
 import uuid
 from collections import Counter
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
@@ -58,6 +58,8 @@ from .shared_evidence import (
     MAGNET_FACT_SYSTEM, THERMAL_FACT_SYSTEM, SHARED_PROMPTS, VERSION as SHARED_VERSION,
     assess_certificate, parse_observation, route_operator,
 )
+from . import typed_evidence
+from .token_budget import load_plan, wants_extra
 
 
 LOGGER = logging.getLogger(__name__)
@@ -74,6 +76,7 @@ METHODS = {
     "causal_evidence",
     "shared_budget",
     "shared_evidence",
+    "efficient_budget",
     "direct_ttcl",
     "evidence_only",
     "evimem",
@@ -293,9 +296,19 @@ class EviMemRunner:
             )
         )
         if self.method in {"shared_budget", "shared_evidence"}:
+            if self.config_snapshot.get("evidence", {}).get("protocol") == "typed_v3":
+                self._prompt_hash = _sha256_text(
+                    self._prompt_hash + "\n" + json.dumps(typed_evidence.SPECS, sort_keys=True)
+                    + "\n" + sha256_file(str(Path(__file__).with_name("typed_evidence.py")))
+                )
+            else:
+                self._prompt_hash = _sha256_text(
+                    self._prompt_hash + "\n" + "\n".join(SHARED_PROMPTS)
+                    + "\n" + sha256_file(str(Path(__file__).with_name("shared_evidence.py")))
+                )
+        if self.method == "efficient_budget":
             self._prompt_hash = _sha256_text(
-                self._prompt_hash + "\n" + "\n".join(SHARED_PROMPTS)
-                + "\n" + sha256_file(str(Path(__file__).with_name("shared_evidence.py")))
+                self._prompt_hash + "\n" + sha256_file(str(Path(__file__).with_name("token_budget.py")))
             )
 
     def _sampling(self, temperature: float, offset: int, max_tokens: Optional[int] = None) -> SamplingConfig:
@@ -793,6 +806,10 @@ class EviMemRunner:
         sample_index: int, fidelity_images: Sequence[str],
         blank_images: Sequence[str], mismatch_images: Sequence[str],
     ) -> Tuple[SelectionDecision, Dict[str, Any]]:
+        if self.config_snapshot.get("evidence", {}).get("protocol") == "typed_v3":
+            return self._typed_adjudication(
+                sample, candidates, sample_index, fidelity_images, blank_images, mismatch_images,
+            )
         greedy = _greedy_decision(candidates)
         operator = route_operator(sample.question, sample.choices)
         audit: Dict[str, Any] = {
@@ -842,6 +859,69 @@ class EviMemRunner:
             scores=ComponentScores(support, 1.0, 1.0), borda_score=2.0,
             component_wins=2, eligible_for_memory=False,
             reason="shared=stable_observations_executable_reasoning; memory=disabled",
+        ), audit
+
+    def _typed_adjudication(
+        self, sample: MultimodalSample, candidates: Sequence[Candidate],
+        sample_index: int, fidelity_images: Sequence[str],
+        blank_images: Sequence[str], mismatch_images: Sequence[str],
+    ) -> Tuple[SelectionDecision, Dict[str, Any]]:
+        """Question-blind bounded transcription, then deterministic execution."""
+        greedy = _greedy_decision(candidates)
+        program = typed_evidence.compile_program(sample.question, sample.choices)
+        audit: Dict[str, Any] = {
+            "version": typed_evidence.VERSION, "program": program,
+            "operator": program["operator"] if program else None,
+            "greedy_answer": greedy.answer,
+            "candidate_disagreement": len({c.normalized_answer for c in candidates}) > 1,
+            "facts_stable": False, "counterfactual_drop": False,
+            "gate_passed": False, "changed_from_greedy": False,
+            "fallback_reason": "unsupported_task", "observations": [],
+        }
+        if program is None or len(sample.image_paths) != 1:
+            if program is not None:
+                audit["fallback_reason"] = "requires_single_image"
+            return greedy, audit
+        system, schema, token_limit = typed_evidence.SPECS[program["modality"]]
+        views = [("original", sample.image_paths),
+                 ("fidelity", fidelity_images or sample.image_paths),
+                 ("blank", blank_images)]
+        if mismatch_images:
+            views.append(("history_mismatch", mismatch_images))
+        parsed = []
+        for offset, (view, images) in enumerate(views):
+            response = self._generate(
+                system, "Transcribe only visible observations using the supplied schema.",
+                images[:1], replace(self._sampling(
+                    0.0, sample_index * 100 + 86 + offset, max_tokens=token_limit,
+                ), output_schema=schema),
+            )
+            observation = typed_evidence.parse_observation(response.content, program)
+            parsed.append(observation)
+            audit["observations"].append({
+                "view": view, "raw_response": response.content, "parsed": observation,
+                "image_hashes": [sha256_file(p) for p in images[:1]],
+                "schema_hash": _sha256_text(json.dumps(schema, sort_keys=True)),
+                "completion_tokens": response.completion_tokens,
+                "max_tokens": token_limit,
+                "question_exposed": False, "choices_exposed": False,
+                "candidate_answers_exposed": False,
+            })
+        audit.update(typed_evidence.assess_certificate(
+            program, parsed, sample.choices, [c.normalized_answer for c in candidates],
+        ))
+        if not audit["gate_passed"]:
+            greedy.reason += f"; typed={audit['fallback_reason']}"
+            return greedy, audit
+        winner = audit["computed_answer"]
+        audit["changed_from_greedy"] = winner != greedy.answer
+        representative = next(c for c in candidates if c.normalized_answer == winner)
+        support = sum(c.normalized_answer == winner for c in candidates) / len(candidates)
+        return SelectionDecision(
+            answer=winner, representative=representative,
+            scores=ComponentScores(support, 1.0, 1.0), borda_score=2.0,
+            component_wins=2, eligible_for_memory=False,
+            reason="typed=bounded_observations_executable_reasoning; memory=disabled",
         ), audit
 
     def _causal_adjudication(
@@ -1241,6 +1321,11 @@ class EviMemRunner:
         self.manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
     def run(self, samples: Sequence[MultimodalSample]) -> None:
+        cost_targets = []
+        if self.method == "efficient_budget":
+            cost_targets = load_plan(self.config_snapshot["budget_control"]["token_plan"],
+                                     self.config_snapshot, [s.sample_id for s in samples])
+        cumulative_target = 0
         existing_artifacts = [
             path
             for path in (self.predictions_path, self.memory_path, self.manifest_path)
@@ -1253,6 +1338,16 @@ class EviMemRunner:
             )
         self._validate_resume_state()
         completed = self._load_completed()
+        if completed:
+            rows = [json.loads(line) for line in self.predictions_path.read_text().splitlines() if line.strip()]
+            if [row["sample_id"] for row in rows] != [s.sample_id for s in samples[:len(rows)]]:
+                raise ValueError("Resume predictions are not an ordered prefix of this stream")
+            # An interruption after prediction append but before manifest update
+            # must not lose committed usage or alter adaptive budget allocation.
+            if all("usage_delta" in row for row in rows):
+                self.total_prompt_tokens = sum(row["usage_delta"]["prompt_tokens"] for row in rows)
+                self.total_completion_tokens = sum(row["usage_delta"]["completion_tokens"] for row in rows)
+                self.total_latency = sum(row["usage_delta"]["latency_seconds"] for row in rows)
         if self.resume and self.memory_path.exists():
             self.memory.load_jsonl(self.memory_path)
         previous_images: Sequence[str] = ()
@@ -1260,10 +1355,13 @@ class EviMemRunner:
         self._write_manifest("running", processed)
 
         for sample_index, sample in enumerate(samples):
+            if cost_targets:
+                cumulative_target += cost_targets[sample_index]
             if sample.sample_id in completed:
                 previous_images = sample.image_paths or previous_images
                 continue
             sample.validate_images()
+            before_usage = (self.total_prompt_tokens, self.total_completion_tokens, self.total_latency)
             before_memory_size = len(self.memory)
             memory_context, retrieved = self._memory_context(sample, sample_index)
 
@@ -1300,6 +1398,25 @@ class EviMemRunner:
                     for offset in range(6)
                 ]
                 decision = _majority_decision(candidates)
+                verdicts = {}
+                counterfactual_answers = []
+            elif self.method == "efficient_budget":
+                candidates = []
+                for offset in range(12):
+                    if offset >= 6:
+                        average_cost = sum(c.response.prompt_tokens + c.response.completion_tokens
+                                           for c in candidates) / len(candidates)
+                        if not wants_extra(self.total_prompt_tokens + self.total_completion_tokens,
+                                           cumulative_target, average_cost):
+                            break
+                    candidates.append(self._candidate(
+                        sample, "original_greedy" if offset == 0 else f"independent_sample_{offset}",
+                        sample.question, sample.image_paths, ANSWER_SYSTEM,
+                        self._sampling(0.0 if offset == 0 else 0.7, sample_index * 100 + 10 + offset),
+                    ))
+                decision = _majority_decision(candidates)
+                decision.eligible_for_memory = False
+                decision.reason += "; cost_control=independent_sampling_6_to_12; memory=disabled"
                 verdicts = {}
                 counterfactual_answers = []
             else:
@@ -1472,6 +1589,11 @@ class EviMemRunner:
                 "memory_size_before": before_memory_size,
                 "memory_size_after": len(self.memory),
                 "wrote_memory": wrote_memory,
+                "usage_delta": {
+                    "prompt_tokens": self.total_prompt_tokens - before_usage[0],
+                    "completion_tokens": self.total_completion_tokens - before_usage[1],
+                    "latency_seconds": self.total_latency - before_usage[2],
+                },
             }
             with self.predictions_path.open("a", encoding="utf-8") as handle:
                 handle.write(json.dumps(record, ensure_ascii=False) + "\n")

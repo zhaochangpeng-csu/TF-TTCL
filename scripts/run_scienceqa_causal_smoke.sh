@@ -8,12 +8,13 @@ gpu_index="${GPU_INDEX:-2}"
 api_port="${API_PORT:-9000}"
 smoke_limit="${SMOKE_LIMIT:-20}"
 run_greedy="${RUN_GREEDY:-0}"
+run_efficient="${RUN_EFFICIENT:-0}"
 method_family="${METHOD_FAMILY:-causal}"
 run_tag="${RUN_TAG:-${method_family}_v1_seed0_smoke20}"
 model_path="${MODEL_PATH:-/home/lthpc/private/models/Qwen2.5-VL-7B-Instruct}"
 python_bin="${PYTHON_BIN:-/home/lthpc/.conda/envs/ttt/bin/python}"
 vllm_bin="${VLLM_BIN:-/home/lthpc/.conda/envs/ttt/bin/vllm}"
-config_path="core/config/mm_scienceqa_train_${method_family}.yaml"
+config_path="${CONFIG_PATH:-core/config/mm_scienceqa_train_${method_family}.yaml}"
 run_root="core/exp_res/mm/scienceqa_train/qwen25vl/${run_tag}"
 budget_dir="${run_root}/${method_family}_budget"
 evidence_dir="${run_root}/${method_family}_evidence"
@@ -110,5 +111,21 @@ fi
 "$python_bin" "evaluate/multimodal/audit_${method_family}.py" \
   --budget "${budget_dir}/predictions.jsonl" \
   --evidence "${evidence_dir}/predictions.jsonl" >"$audit_path"
+
+"$python_bin" -c 'import json,sys; a=json.load(open(sys.argv[1])); sys.exit(0 if a["protocol_ok"] else 5)' "$audit_path"
+
+if [[ "$run_efficient" == 1 ]]; then
+  token_plan="${run_root}/cost_targets.json"
+  if [[ ! -f "$token_plan" ]]; then
+    "$python_bin" scripts/export_token_budget.py --predictions "${budget_dir}/predictions.jsonl" --output "$token_plan"
+  fi
+  "$python_bin" core/mm_main.py --config "$config_path" \
+    "${common_overrides[@]}" \
+    --override "experiment.method=efficient_budget" \
+    --override "budget_control.token_plan=${token_plan}" \
+    --override "model.response_trace_dir=${run_root}/efficient_trace" \
+    --override "model.response_trace_mode=record" \
+    --override "experiment.output_dir=${run_root}/efficient_budget"
+fi
 
 echo "${method_family} run completed. Label-free audit: ${audit_path}"

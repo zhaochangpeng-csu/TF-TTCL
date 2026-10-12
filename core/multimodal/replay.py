@@ -45,13 +45,17 @@ class ResponseTraceBackend:
 
     def generate(self, system_prompt: str, user_text: str, image_paths: Sequence[str],
                  sampling: SamplingConfig) -> GenerationResponse:
+        sampling_payload = asdict(sampling)
+        # Preserve old immutable trace keys for unconstrained calls.
+        if sampling_payload.get("output_schema") is None:
+            sampling_payload.pop("output_schema", None)
         request = {
             "namespace": self.namespace,
             "model": self.model_name,
             "system_prompt": system_prompt,
             "user_text": user_text,
             "image_hashes": [sha256_file(path) for path in image_paths],
-            "sampling": asdict(sampling),
+            "sampling": sampling_payload,
         }
         encoded = json.dumps(request, sort_keys=True, ensure_ascii=False)
         key = hashlib.sha256(encoded.encode("utf-8")).hexdigest()

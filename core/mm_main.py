@@ -79,6 +79,11 @@ def main() -> None:
         experiment.get("seed", 0),
     )
     samples = [example.sample for example in examples]
+    if experiment.get("method") == "efficient_budget":
+        from core.multimodal.token_budget import digest, load_plan
+        plan_path = config["budget_control"]["token_plan"]
+        load_plan(plan_path, config, [s.sample_id for s in samples])
+        config["budget_control"]["token_plan_sha256"] = digest(plan_path)
     if args.validate_config:
         for sample in samples:
             sample.validate_images()

@@ -66,6 +66,18 @@ def audit_runs(budget_path: Path, evidence_path: Path) -> dict[str, Any]:
         "changed_from_greedy": sum(g["changed_from_greedy"] for g in gates),
         "fallback_reasons": dict(Counter(str(g["fallback_reason"]) for g in gates if not g["gate_passed"])),
         "parse_error_responses": parse_errors, "exposed_observation_records": exposed,
+        "observation_diagnostics": {
+            "responses": sum(len(g["observations"]) for g in gates),
+            "incomplete_responses": sum(o["parsed"].get("complete") is False
+                                         for g in gates for o in g["observations"]),
+            "literal_empty_blanks": sum(o["parsed"].get("literal_empty") is True
+                                         for g in gates for o in g["observations"] if o["view"] == "blank"),
+            "nonempty_or_invalid_blanks": sum(o["parsed"].get("literal_empty") is not True
+                                         for g in gates for o in g["observations"] if o["view"] == "blank"),
+            "at_token_limit": sum(o.get("max_tokens") is not None
+                                  and o.get("completion_tokens", 0) >= o["max_tokens"]
+                                  for g in gates for o in g["observations"]),
+        },
         "policy_error_ids": policy_errors, "memory_leak_ids": memory_leaks,
         "budget_audit": {"call_trace_mismatches": mismatches,
                          "budget_total_tokens": bt, "evidence_total_tokens": et,
