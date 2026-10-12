@@ -1,4 +1,4 @@
-# Shared visual observations, different executable reasoning (v1)
+# Shared visual observations, different executable reasoning (v2)
 
 ## Frozen scope and hypothesis
 
@@ -22,10 +22,19 @@ they are not prospective evidence of improvement or a held-out test.
 
 ## Extraction and gate
 
-The same frozen VLM transcribes only facing pole letters or numeric table rows.
+The same frozen VLM transcribes standalone uppercase letters with normalized
+center positions, or numeric table rows. The letter prompt names neither
+magnetism nor expected N/S identities; it gives no populated schema example.
+The parser requires exactly four N/S labels, distinct left-to-right positions
+(at least 10/1000 apart), and a horizontal band (y spread at most 150/1000).
+The middle two labels are the shared facing-pole facts. Stability compares the
+ordered letters, not exact coordinate values, avoiding irrelevant OCR jitter.
+This restricted geometry is not a learned object detector and cannot prove
+that every four-letter observation actually corresponds to two bar magnets.
 It sees neither question, context, choices, candidates, nor a requested answer.
 Strict schemas reject extra fields, fabricated absence on parse errors,
-nonfinite numbers, inferred hidden pole labels, and ambiguous formatting.
+nonfinite numbers, and ambiguous formatting. Whether letters were hallucinated
+still requires empirical diagnostics, not a parser guarantee.
 
 For each supported task (including unanimous candidates), extract on the real
 image, lossless PNG re-encoding, white blank, and immediately preceding image
@@ -66,6 +75,14 @@ selection are allowed. This diagnostic does not change the full 400-item
 stream, prompts, or operators. The stream contains no supported vial tables,
 so temperature inference is not empirically evaluated by this pilot.
 
+The initial v1 core-path smoke returned N/S labels for all 12 white blank
+images, despite well-formed JSON and stable real-image outputs. Its gate
+correctly rejected every sample. Preserve those artifacts as a failed
+observability control. V2 was changed using **only these label-free
+transcriptions**, not accuracy: replace prompted facing-pole fields with
+literal positional OCR, remove filled-in letter/numeric examples, and re-run
+smoke before scoring. No labels from the new stream were opened for redesign.
+
 Then run all three complete 400-item arms on GPU 2 inside `ttt_ex`:
 
 1. Standalone greedy (existing zero-shot prompt).
@@ -90,9 +107,9 @@ requiring new frozen evaluation and stronger efficient controls.
 Commands (server, repo root):
 
 ```sh
-METHOD_FAMILY=shared SMOKE_LIMIT=20 RUN_GREEDY=1 RUN_TAG=shared_v1_seed0_smoke20 \
+METHOD_FAMILY=shared SMOKE_LIMIT=20 RUN_GREEDY=1 RUN_TAG=shared_v2_seed0_smoke20 \
   bash scripts/run_scienceqa_causal_smoke.sh
-METHOD_FAMILY=shared SMOKE_LIMIT=400 RUN_GREEDY=1 RUN_TAG=shared_v1_seed0_dev400 \
+METHOD_FAMILY=shared SMOKE_LIMIT=400 RUN_GREEDY=1 RUN_TAG=shared_v2_seed0_dev400 \
   bash scripts/run_scienceqa_causal_smoke.sh
 ```
 

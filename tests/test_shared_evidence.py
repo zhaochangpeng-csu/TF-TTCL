@@ -12,7 +12,10 @@ from core.multimodal.shared_evidence import (
 
 
 def magnet(poles):
-    return parse_observation(json.dumps({"visible": bool(poles), "facing_poles": poles}), "facing_poles")
+    opposite = {"N": "S", "S": "N"}
+    letters = [opposite[poles[0]], *poles, opposite[poles[1]]] if poles else []
+    return parse_observation(json.dumps({"items": [
+        {"text": letter, "x": 100 + 250 * i, "y": 500} for i, letter in enumerate(letters)]}), "facing_poles")
 
 
 class SharedOperatorTests(unittest.TestCase):
@@ -30,6 +33,22 @@ class SharedOperatorTests(unittest.TestCase):
                 result = execute_operator("facing_poles", {"facing_poles": poles}, choices)
                 self.assertEqual(result["answer"], chr(97 + choices.index(relation)))
 
+    def test_positional_ocr_is_order_independent_and_rejects_bad_layouts(self):
+        items = [{"text": letter, "x": 100 + 250 * i, "y": 500}
+                 for i, letter in enumerate(["S", "N", "N", "S"])]
+        result = parse_observation(json.dumps({"items": list(reversed(items))}), "facing_poles")
+        self.assertEqual(result["facts"]["facing_poles"], ["N", "N"])
+        items[1]["y"] = 900
+        self.assertFalse(parse_observation(json.dumps({"items": items}), "facing_poles")["visible"])
+        items[1]["y"] = 500
+        items[1]["x"] = items[0]["x"]
+        self.assertFalse(parse_observation(json.dumps({"items": items}), "facing_poles")["visible"])
+        items[1]["x"] = 350
+        items[1]["text"] = "A"
+        observation = parse_observation(json.dumps({"items": items}), "facing_poles")
+        self.assertFalse(observation["visible"])
+        self.assertFalse(observation["parse_error"])
+
     def test_table_deltas_and_mixed_abstention(self):
         choices = ["each vial . . . the surroundings", "the surroundings . . . each vial"]
         for final, answer in [(4.9, "b"), (1.0, "a"), (2.2, None)]:
@@ -39,10 +58,10 @@ class SharedOperatorTests(unittest.TestCase):
             {"initial": 2, "final": 3}, {"initial": 2, "final": 1}]}, choices)["answer"])
 
     def test_parser_fails_closed_extra_verdicts_and_bad_types(self):
-        for payload in [{"visible": True, "facing_poles": ["N", "N"], "answer": "repel"},
-                        {"visible": True, "facing_poles": ["unknown", "N"]},
-                        {"visible": False, "facing_poles": ["N", "N"]},
-                        {"visible": "false", "facing_poles": []}, []]:
+        for payload in [{"items": [], "answer": "repel"},
+                        {"items": [{"text": "unknown", "x": 100, "y": 100}]},
+                        {"items": [{"text": "N", "x": True, "y": 100}]},
+                        {"items": [{"text": "N", "x": 100, "y": 1001}]}, []]:
             self.assertTrue(parse_observation(json.dumps(payload), "facing_poles")["parse_error"])
         for value in (True, "2.2", float("nan"), float("inf")):
             payload = {"visible": True, "unit": "C", "rows": [{"initial": value, "final": 3}]}
@@ -77,8 +96,9 @@ class SharedRunnerTests(unittest.TestCase):
             def generate(self, system, text, images, sampling):
                 self.calls.append((system, text))
                 absent = "blank" in images[0]
-                return GenerationResponse(json.dumps({"visible": not absent,
-                    "facing_poles": [] if absent else ["N", "N"]}))
+                return GenerationResponse(json.dumps({"items": [] if absent else [
+                    {"text": letter, "x": 100 + i * 250, "y": 500}
+                    for i, letter in enumerate(["S", "N", "N", "S"])]}))
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -103,6 +123,8 @@ class SharedRunnerTests(unittest.TestCase):
                 self.assertNotIn("Will these magnets", system + text)
                 self.assertNotIn("RESPONSE_X", system + text)
                 self.assertNotIn("Options:", system + text)
+                self.assertNotIn('"N"', system + text)
+                self.assertNotIn('"S"', system + text)
 
     def test_shared_labels_not_opened_before_all_complete(self):
         from evaluate.multimodal.compare_causal import compare_runs

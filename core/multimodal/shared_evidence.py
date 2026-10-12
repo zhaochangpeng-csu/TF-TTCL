@@ -12,16 +12,16 @@ import re
 from typing import Any, Sequence
 
 
-MAGNET_FACT_SYSTEM = """Transcribe visible labels, without answering any question.
-No question or answer options are supplied. Inspect the FIRST image only.
-For exactly two horizontally separated bar magnets, read the pole label at the
-RIGHT end of the LEFT magnet and at the LEFT end of the RIGHT magnet (the ends
-nearest the gap). Do not infer a pole from color or from the opposite end.
-If either facing label is not visible, or there are not exactly two horizontal
-bar magnets, return {"visible":false,"facing_poles":[]}.
-Otherwise return JSON only: {"visible":true,"facing_poles":["N","S"]}.
-Each pole must be the actual visible N or S letter. Do not discuss forces,
-attraction, repulsion, candidate answers, or confidence."""
+MAGNET_FACT_SYSTEM = """Perform literal text transcription, not question answering.
+Inspect the FIRST image only. List visible standalone single uppercase letters
+with their center positions. Do not infer missing letters, letters from colors,
+or an expected number of letters. Ignore words and numbers. A uniformly blank
+image contains no letters: return {"items":[]}.
+Return ONLY a JSON object with key items, an array. Each item has EXACTLY keys
+text (the verbatim single uppercase letter), x, and y (numeric center position,
+normalized from 0 to 1000). Origin is top left; x increases to the right and y
+downward. Include only letters actually visible. No expected letter identities,
+question, answer options, or conclusions are provided."""
 
 THERMAL_FACT_SYSTEM = """Transcribe a visible temperature table, without answering
 any question. No question or answer options are supplied. Inspect FIRST image
@@ -29,12 +29,12 @@ only. Read EVERY data row in image order from a table whose columns explicitly
 name initial and final temperatures in degrees Celsius. Do not infer missing
 numbers from text or knowledge. If headers, unit, or any required number are
 not readable, return {"visible":false,"unit":null,"rows":[]}.
-Otherwise return JSON only, with actual numeric values, for example:
-{"visible":true,"unit":"C","rows":[{"initial":10.0,"final":12.0}]}.
+Otherwise return JSON only with keys visible (true), unit ("C"), and rows
+(a list with EVERY row, each containing only numeric initial and final keys).
 Do not discuss heat flow, candidate answers, conclusions, or confidence."""
 
 SHARED_PROMPTS = (MAGNET_FACT_SYSTEM, THERMAL_FACT_SYSTEM)
-VERSION = "shared_facts_v1_magnet_thermal"
+VERSION = "shared_facts_v2_literal_positions"
 
 
 def route_operator(question: str, choices: Sequence[str]) -> str | None:
@@ -73,25 +73,30 @@ def parse_observation(text: str, operator: str) -> dict[str, Any]:
         if cleaned.startswith("```json\n") and cleaned.endswith("```"):
             cleaned = cleaned[8:-3].strip()
         raw = json.loads(cleaned)
-        if not isinstance(raw, dict) or type(raw.get("visible")) is not bool:
+        if not isinstance(raw, dict):
             return failure
         if operator == "facing_poles":
-            if set(raw) != {"visible", "facing_poles"}:
+            if set(raw) != {"items"} or not isinstance(raw["items"], list) or len(raw["items"]) > 64:
                 return failure
-            poles = raw["facing_poles"]
-            if not isinstance(poles, list):
-                return failure
-            if raw["visible"]:
-                if len(poles) != 2 or any(p not in ("N", "S") for p in poles):
+            items = raw["items"]
+            for item in items:
+                if not isinstance(item, dict) or set(item) != {"text", "x", "y"}:
                     return failure
-                facts = {"facing_poles": poles}
-            else:
-                if poles:
+                if not isinstance(item["text"], str) or not re.fullmatch(r"[A-Z]", item["text"]):
                     return failure
-                facts = None
+                if any(type(item[key]) not in (int, float) or not math.isfinite(item[key])
+                       or not 0 <= item[key] <= 1000 for key in ("x", "y")):
+                    return failure
+            ordered = sorted(items, key=lambda item: item["x"])
+            visible = (len(ordered) == 4 and all(item["text"] in ("N", "S") for item in ordered)
+                and all(ordered[i + 1]["x"] - ordered[i]["x"] >= 10 for i in range(3))
+                and max(item["y"] for item in ordered) - min(item["y"] for item in ordered) <= 150)
+            labels = [item["text"] for item in ordered]
+            facts = {"ordered_labels": labels, "facing_poles": labels[1:3]} if visible else None
         elif operator == "temperature_delta":
-            if set(raw) != {"visible", "unit", "rows"}:
+            if set(raw) != {"visible", "unit", "rows"} or type(raw.get("visible")) is not bool:
                 return failure
+            visible = raw["visible"]
             rows = raw["rows"]
             if not isinstance(rows, list):
                 return failure
@@ -111,7 +116,7 @@ def parse_observation(text: str, operator: str) -> dict[str, Any]:
                 facts = {"unit": "C", "rows": rows}
         else:
             return failure
-        return {"parse_error": False, "visible": raw["visible"], "facts": facts}
+        return {"parse_error": False, "visible": bool(visible), "facts": facts}
     except (ValueError, TypeError, KeyError):
         return failure
 
