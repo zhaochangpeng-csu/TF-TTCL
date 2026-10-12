@@ -1,5 +1,10 @@
 # CCIC: Contrastive Causal Identifiability Certificate
 
+The fixed 400-row pilot is complete. Strict CCIC v1 returned greedy on every
+sample and did not meet its improvement condition. See
+[the development result](results/scienceqa_ccic_seed0.md). Keep this version as
+a negative control; validation, cross-dataset expansion, and memory are stopped.
+
 ## Why the previous certificate failed
 
 The ScienceQA train pilot falsified the previous validation signal. Blank and
