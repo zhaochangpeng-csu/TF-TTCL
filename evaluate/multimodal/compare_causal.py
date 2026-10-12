@@ -22,7 +22,8 @@ from evaluate.multimodal.metrics import (
 )
 
 
-def validate_completed_runs(paths: dict[str, Path], family: str = "causal") -> tuple[
+def validate_completed_runs(paths: dict[str, Path], family: str = "causal",
+                            expected_n: int | None = None) -> tuple[
     list[str], dict[str, dict[str, dict[str, Any]]], dict[str, dict[str, Any]]
 ]:
     """Require a completed, matched stream before any label-loading call."""
@@ -45,6 +46,8 @@ def validate_completed_runs(paths: dict[str, Path], family: str = "causal") -> t
     reference = loaded["greedy"][0]
     if not reference:
         raise ValueError("Cannot score an empty stream")
+    if expected_n is not None and len(reference) != expected_n:
+        raise ValueError("Incomplete planned stream; refusing to read labels")
     for name, (order, _) in loaded.items():
         if order != reference or manifests[name].get("processed") != len(reference):
             raise ValueError(f"{name} does not contain the identical completed stream")
@@ -55,8 +58,9 @@ def compare_runs(
     paths: dict[str, Path], labels: str, dataset: str,
     image_root: str | None = None, bootstrap_samples: int = 10000, seed: int = 0,
     family: str = "causal",
+    expected_n: int | None = None,
 ) -> dict[str, Any]:
-    order, rows, manifests = validate_completed_runs(paths, family)
+    order, rows, manifests = validate_completed_runs(paths, family, expected_n)
     budget_name, evidence_name = f"{family}_budget", f"{family}_evidence"
     if family == "shared":
         from evaluate.multimodal.audit_shared import audit_runs as shared_audit
@@ -119,7 +123,7 @@ def compare_runs(
         for i, sample_id in enumerate(order)
         if rows[evidence_name][sample_id].get(f"{family}_certificate", {}).get("gate_passed")
     ]
-    return {
+    result = {
         "dataset": dataset, "n": len(order), "runs": aggregate,
         "comparisons": comparisons, "label_free_protocol_audit": audit,
         "selective_accuracy": sum(selected) / len(selected) if selected else None,
@@ -129,6 +133,23 @@ def compare_runs(
             and budget["delta"] > 0
         ),
     }
+    if family == "shared":
+        anchors = [next(c["answer"] for c in rows[budget_name][sid]["candidate_answers"]
+                        if c["trajectory"] == "original_greedy") for sid in order]
+        anchor_scores = [score_prediction(dataset, str(answer), targets[sid].answers,
+                                         targets[sid].metadata)
+                         for sid, answer in zip(order, anchors)]
+        delta, low, high = paired_bootstrap_delta_ci(
+            anchor_scores, scores[evidence_name], bootstrap_samples, seed)
+        result["internal_greedy_anchor"] = {
+            "accuracy": sum(anchor_scores) / len(anchor_scores),
+            "standalone_answer_mismatch_ids": [sid for sid, answer in zip(order, anchors)
+                                                if answer != rows["greedy"][sid]["answer"]],
+            "evidence_delta": delta, "delta_ci95": [low, high],
+            "corrected": sum(b > a for a, b in zip(anchor_scores, scores[evidence_name])),
+            "regressed": sum(b < a for a, b in zip(anchor_scores, scores[evidence_name])),
+        }
+    return result
 
 
 def main() -> None:
@@ -142,12 +163,14 @@ def main() -> None:
     parser.add_argument("--bootstrap-samples", type=int, default=10000)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--family", choices=["causal", "shared"], default="causal")
+    parser.add_argument("--expected-n", type=int)
     args = parser.parse_args()
     result = compare_runs(
         {"greedy": Path(args.greedy), f"{args.family}_budget": Path(args.budget),
          f"{args.family}_evidence": Path(args.evidence)},
         args.labels, args.dataset, args.image_root, args.bootstrap_samples, args.seed,
         args.family,
+        args.expected_n,
     )
     print(json.dumps(result, ensure_ascii=False, indent=2))
 

@@ -141,6 +141,23 @@ class SharedRunnerTests(unittest.TestCase):
                     compare_runs(paths, "NEVER_OPEN", "scienceqa_img", family="shared")
                 loader.assert_not_called()
 
+    def test_completed_smoke_cannot_be_scored_as_full_stream(self):
+        from evaluate.multimodal.compare_causal import compare_runs
+        with tempfile.TemporaryDirectory() as directory:
+            paths = {}
+            for name, method in [("greedy", "zero_shot"), ("shared_budget", "shared_budget"),
+                                 ("shared_evidence", "shared_evidence")]:
+                root = Path(directory) / name
+                root.mkdir()
+                (root / "manifest.json").write_text(json.dumps({
+                    "status": "completed", "method": method, "processed": 1}))
+                (root / "predictions.jsonl").write_text(json.dumps({"sample_id": "x"}) + "\n")
+                paths[name] = root / "predictions.jsonl"
+            with patch("evaluate.multimodal.compare_causal.load_local_dataset") as loader:
+                with self.assertRaisesRegex(ValueError, "refusing to read labels"):
+                    compare_runs(paths, "NEVER_OPEN", "scienceqa_img", family="shared", expected_n=400)
+                loader.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,10 @@
 # Shared visual observations, different executable reasoning (v2)
 
+Status: development evaluation completed. V2 corrects one answer (+0.25 pp)
+but is not significant and fails the strict full-stream format audit. Do not
+expand v2 to benchmarks or memory. See
+[the result report](results/scienceqa_shared_evidence_seed0.md).
+
 ## Frozen scope and hypothesis
 
 CCIC's spatially disjoint requirement had zero coverage. This probe instead
