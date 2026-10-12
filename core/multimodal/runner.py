@@ -1168,6 +1168,7 @@ class EviMemRunner:
             "prompt_tokens": self.total_prompt_tokens,
             "completion_tokens": self.total_completion_tokens,
             "latency_seconds": self.total_latency,
+            "response_trace": getattr(self.model, "trace_stats", None),
             "updated_at": time.time(),
         }
         self.manifest_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")

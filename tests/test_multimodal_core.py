@@ -31,6 +31,7 @@ from core.multimodal.image_ops import (
 )
 from core.multimodal.memory import EvidenceMemory
 from core.multimodal.runner import EviMemRunner, _semantic_variant_is_safe
+from core.multimodal.replay import ResponseTraceBackend
 from core.multimodal.schema import (
     Candidate,
     ComponentScores,
@@ -423,6 +424,37 @@ class MemoryTests(unittest.TestCase):
 
 
 class ImageAndClientTests(unittest.TestCase):
+    def test_response_trace_replays_exactly_and_rejects_other_seeds(self):
+        class CountingVLM(FakeVLM):
+            def __init__(self):
+                self.calls = 0
+
+            def generate(self, *args):
+                self.calls += 1
+                return GenerationResponse(f"Final answer: {self.calls}", 12, 3, [], 0.2)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            image = root / "image.png"
+            Image.new("RGB", (8, 8), "red").save(image)
+            backend = CountingVLM()
+            namespace = {"dataset": "scienceqa_img", "seed": 0, "source_sha256": "abc"}
+            record = ResponseTraceBackend(backend, root / "trace", namespace, "record")
+            sampling = SamplingConfig(seed=9)
+            expected = record.generate("sys", "q", [str(image)], sampling)
+            replay = ResponseTraceBackend(backend, root / "trace", namespace, "replay")
+            actual = replay.generate("sys", "q", [str(image)], sampling)
+            self.assertEqual(expected, actual)
+            self.assertEqual(backend.calls, 1)
+            with self.assertRaisesRegex(RuntimeError, "Unrecorded request"):
+                replay.generate("sys", "q", [str(image)], SamplingConfig(seed=10))
+            other_stream = ResponseTraceBackend(
+                backend, root / "trace", {**namespace, "seed": 1}, "replay"
+            )
+            with self.assertRaisesRegex(RuntimeError, "Unrecorded request"):
+                other_stream.generate("sys", "q", [str(image)], sampling)
+            self.assertEqual(backend.calls, 1)
+
     def test_safe_views_are_deterministic_and_dimension_preserving(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

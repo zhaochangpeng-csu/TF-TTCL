@@ -20,6 +20,8 @@ from core.multimodal.datasets import load_local_dataset
 from core.multimodal.embeddings import HashMultimodalEmbedder, VLLMMultimodalEmbedder
 from core.multimodal.memory import EvidenceMemory
 from core.multimodal.runner import EviMemRunner
+from core.multimodal.replay import ResponseTraceBackend
+from core.multimodal.image_ops import sha256_file
 
 
 def apply_overrides(config: dict, overrides: list[str]) -> dict:
@@ -94,6 +96,18 @@ def main() -> None:
         api_key=api_key,
         timeout=float(model_config.get("timeout", 300)),
     )
+    if model_config.get("response_trace_dir"):
+        model = ResponseTraceBackend(
+            model,
+            Path(model_config["response_trace_dir"]),
+            namespace={
+                "dataset": experiment["dataset"],
+                "source_sha256": sha256_file(experiment["data_path"]),
+                "seed": experiment.get("seed", 0),
+                "model_revision": model_config.get("revision"),
+            },
+            mode=model_config.get("response_trace_mode", "record"),
+        )
     embedder_type = memory_config.get("embedder", "hash")
     if embedder_type == "hash":
         embedder = HashMultimodalEmbedder(int(memory_config.get("dimensions", 256)))

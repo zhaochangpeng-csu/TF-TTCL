@@ -52,8 +52,14 @@ question-region ambiguity, or missing crossover returns the original greedy
 answer. CCIC never writes memory in this phase.
 
 The `causal_budget` arm performs every adaptive call and image transformation
-but discards the CCIC decision. `causal_evidence` may apply the decision. This
-keeps the causal comparison budget matched.
+but discards the CCIC decision. It records responses keyed by prompts, image
+hashes, sampling configuration, dataset/source hash, seed, and model revision.
+The `causal_evidence` arm strictly replays that same trace and may apply the
+decision; an unrecorded request raises an error rather than querying the model.
+This isolates selection from serving nondeterminism and makes the paired token
+budgets exact. Evidence-arm token/model-latency totals are the cost of the shared
+computation, not a second actual model expenditure. Executed and replayed call
+counts are explicitly reported in manifests. Traces remain outside Git.
 
 ## What is and is not the research claim
 

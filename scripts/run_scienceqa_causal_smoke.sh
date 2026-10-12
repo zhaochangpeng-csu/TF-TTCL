@@ -18,6 +18,7 @@ budget_dir="${run_root}/causal_budget"
 evidence_dir="${run_root}/causal_evidence"
 service_log="${run_root}/vllm.log"
 audit_path="${run_root}/protocol_audit.json"
+trace_dir="${run_root}/response_trace"
 
 active_pids="$({
   nvidia-smi -i "$gpu_index" --query-compute-apps=pid \
@@ -82,11 +83,15 @@ fi
 "$python_bin" core/mm_main.py --config "$config_path" \
   "${common_overrides[@]}" \
   --override "experiment.method=causal_budget" \
+  --override "model.response_trace_dir=${trace_dir}" \
+  --override "model.response_trace_mode=record" \
   --override "experiment.output_dir=${budget_dir}"
 
 "$python_bin" core/mm_main.py --config "$config_path" \
   "${common_overrides[@]}" \
   --override "experiment.method=causal_evidence" \
+  --override "model.response_trace_dir=${trace_dir}" \
+  --override "model.response_trace_mode=replay" \
   --override "experiment.output_dir=${evidence_dir}"
 
 "$python_bin" evaluate/multimodal/audit_causal.py \

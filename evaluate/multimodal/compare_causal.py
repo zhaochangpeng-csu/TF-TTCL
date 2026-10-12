@@ -78,6 +78,7 @@ def compare_runs(
             "completion_tokens": manifest.get("completion_tokens", 0),
             "latency_seconds": manifest.get("latency_seconds", 0),
             "git_sha": manifest.get("git_sha"), "prompt_hash": manifest.get("prompt_hash"),
+            "response_trace": manifest.get("response_trace"),
         }
     comparisons = {}
     for baseline, candidate in [
