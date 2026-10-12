@@ -59,6 +59,13 @@ schemas, exposure isolation, traces, deterministic execution and cleanup, not
 accuracy. If there are no supported disagreements in smoke, disclose that;
 do not choose smoke items using labels or tune by correctness.
 
+The fixed first 20 items have no supported tasks. Add a separate core-path
+smoke on all 12 supported magnet items, filtered **only from the new inference
+file** by the already-frozen routing predicate. No labels or correctness-based
+selection are allowed. This diagnostic does not change the full 400-item
+stream, prompts, or operators. The stream contains no supported vial tables,
+so temperature inference is not empirically evaluated by this pilot.
+
 Then run all three complete 400-item arms on GPU 2 inside `ttt_ex`:
 
 1. Standalone greedy (existing zero-shot prompt).

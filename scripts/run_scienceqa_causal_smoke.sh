@@ -82,6 +82,9 @@ common_overrides=(
   --override "experiment.resume=true"
   --override "model.api_url=http://127.0.0.1:${api_port}/v1"
 )
+if [[ -n "${DATA_PATH:-}" ]]; then
+  common_overrides+=(--override "experiment.data_path=${DATA_PATH}")
+fi
 
 if [[ "$run_greedy" == 1 ]]; then
   "$python_bin" core/mm_main.py --config "$config_path" \
