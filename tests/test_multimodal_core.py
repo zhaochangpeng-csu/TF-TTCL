@@ -52,6 +52,7 @@ from evaluate.multimodal.metrics import (
 )
 from evaluate.multimodal.candidate_oracle import summarize_candidate_oracle
 from evaluate.multimodal.audit_causal import call_trace
+from evaluate.multimodal.compare_causal import compare_runs
 from scripts.prepare_multimodal_dataset import cached_modelscope_parquet_rows
 from scripts.prepare_scienceqa import convert_modelscope_scienceqa_export, convert_scienceqa
 from scripts.create_label_isolated_subset import create_subset
@@ -456,6 +457,26 @@ class ImageAndClientTests(unittest.TestCase):
 
 
 class MetricsTests(unittest.TestCase):
+    def test_causal_evaluation_refuses_labels_until_all_runs_complete(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = {}
+            for name, method in [
+                ("greedy", "zero_shot"), ("causal_budget", "causal_budget"),
+                ("causal_evidence", "causal_evidence"),
+            ]:
+                run = root / name
+                run.mkdir()
+                (run / "manifest.json").write_text(json.dumps({
+                    "status": "running" if name == "causal_evidence" else "completed",
+                    "method": method, "processed": 1,
+                }))
+                paths[name] = run / "predictions.jsonl"
+            with patch("evaluate.multimodal.compare_causal.load_local_dataset") as labels:
+                with self.assertRaisesRegex(ValueError, "refusing to read labels"):
+                    compare_runs(paths, "must-not-read.jsonl", "scienceqa_img")
+                labels.assert_not_called()
+
     def test_causal_call_trace_captures_adaptive_outputs(self):
         row = {
             "candidate_answers": [

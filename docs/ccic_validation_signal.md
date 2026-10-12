@@ -103,3 +103,23 @@ port-9000 Qwen2.5-VL service, runs the two matched 20-row arms, writes
 `protocol_audit.json`, and terminates only the service process it created on
 success, failure, or interruption. It never opens the label file.
 
+After the smoke protocol audit passes, run all three arms on the fixed 400-row
+stream using the same script:
+
+```bash
+SMOKE_LIMIT=400 RUN_GREEDY=1 RUN_TAG=ccic_v1_seed0_dev400 \
+  bash scripts/run_scienceqa_causal_smoke.sh
+```
+
+The following evaluator checks that every manifest is completed and that all
+three ordered prediction streams match before it reads the new labels:
+
+```bash
+python evaluate/multimodal/compare_causal.py \
+  --greedy core/exp_res/mm/scienceqa_train/qwen25vl/ccic_v1_seed0_dev400/greedy/predictions.jsonl \
+  --budget core/exp_res/mm/scienceqa_train/qwen25vl/ccic_v1_seed0_dev400/causal_budget/predictions.jsonl \
+  --evidence core/exp_res/mm/scienceqa_train/qwen25vl/ccic_v1_seed0_dev400/causal_evidence/predictions.jsonl \
+  --labels data/multimodal/scienceqa_modelscope_train/dev400_causal.labels.jsonl \
+  --dataset scienceqa_img --image-root data/multimodal/scienceqa_modelscope_train
+```
+

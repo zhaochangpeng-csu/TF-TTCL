@@ -7,6 +7,7 @@ cd "$project_root"
 gpu_index="${GPU_INDEX:-2}"
 api_port="${API_PORT:-9000}"
 smoke_limit="${SMOKE_LIMIT:-20}"
+run_greedy="${RUN_GREEDY:-0}"
 run_tag="${RUN_TAG:-ccic_v1_seed0_smoke20}"
 model_path="${MODEL_PATH:-/home/lthpc/private/models/Qwen2.5-VL-7B-Instruct}"
 python_bin="${PYTHON_BIN:-/home/lthpc/.conda/envs/ttt/bin/python}"
@@ -70,6 +71,13 @@ common_overrides=(
   --override "experiment.resume=true"
   --override "model.api_url=http://127.0.0.1:${api_port}/v1"
 )
+
+if [[ "$run_greedy" == 1 ]]; then
+  "$python_bin" core/mm_main.py --config "$config_path" \
+    "${common_overrides[@]}" \
+    --override "experiment.method=zero_shot" \
+    --override "experiment.output_dir=${run_root}/greedy"
+fi
 
 "$python_bin" core/mm_main.py --config "$config_path" \
   "${common_overrides[@]}" \
