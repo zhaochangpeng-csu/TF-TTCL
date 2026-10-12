@@ -1,8 +1,13 @@
 # Bounded shared observations and executable reasoning (typed v3 / v3.1)
 
-Status: v3's full format audit failed; v3.1 has 61 passing tests and passed
-100-item label-free recalibration. No development accuracy has been read for either
-version. This is a limited hypothesis probe, not a
+Status: v3's full format audit failed unscored. V3.1 passed 61 tests, unscored
+recalibration and full four-arm development scoring: evidence 87.25%,
+greedy/majority 86.25%, independent matched budget 86.50%. The +0.75 pp
+advantage over independent sampling is not significant (p=0.5078); all four
+greedy repairs are scripted magnetic-pole tasks. See
+[the v3.1 result report](results/scienceqa_typed_evidence_seed0.md).
+The directional gate passes for a frozen validation regression check, not
+memory or broad benchmark expansion. This is a limited hypothesis probe, not a
 general verifier or evidence of top-conference novelty. The v2 pilot is
 preserved in [its report](results/scienceqa_shared_evidence_seed0.md).
 
@@ -170,6 +175,8 @@ Even then, one small train-development stream is not confirmation: freeze a
 new prospective evaluation before ScienceQA validation, additional models/
 datasets, or memory. A nonsignificant or extremely low-coverage gain is not
 enough to justify broad benchmark expansion for a top-conference main track.
+ScienceQA validation was previously used for development diagnostics; its
+re-evaluation is a regression check, not untouched confirmation.
 
 Server commands (repo root, GPU 2, `ttt` environment, `ttt_ex`):
 

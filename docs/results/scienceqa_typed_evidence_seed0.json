@@ -1,0 +1,394 @@
+{
+  "dataset": "scienceqa_img",
+  "n": 400,
+  "runs": {
+    "greedy": {
+      "accuracy": 0.8625,
+      "ci95": [
+        0.8275,
+        0.895
+      ],
+      "prompt_tokens": 139413,
+      "completion_tokens": 1991,
+      "latency_seconds": 66.17033643834293,
+      "git_sha": "780803a42bbd9d3559d60898d776beb27023c0c9",
+      "prompt_hash": "84cc2a353988f438ec07bdd4a165eb6e06adbacfe680bec2ed4b40460b0939b4",
+      "response_trace": null
+    },
+    "shared_budget": {
+      "accuracy": 0.8625,
+      "ci95": [
+        0.8275,
+        0.895
+      ],
+      "prompt_tokens": 902096,
+      "completion_tokens": 26079,
+      "latency_seconds": 420.9891537213698,
+      "git_sha": "780803a42bbd9d3559d60898d776beb27023c0c9",
+      "prompt_hash": "dc4902f3afbf980bcf5c2efa849d8fa93ebf55c2c14cf7790f4ec22d8a6da076",
+      "response_trace": {
+        "mode": "record",
+        "executed_calls_this_process": 2888,
+        "replayed_calls_this_process": 0,
+        "cost_from_shared_trace": false
+      }
+    },
+    "shared_evidence": {
+      "accuracy": 0.8725,
+      "ci95": [
+        0.84,
+        0.905
+      ],
+      "prompt_tokens": 902096,
+      "completion_tokens": 26079,
+      "latency_seconds": 420.9891537213698,
+      "git_sha": "780803a42bbd9d3559d60898d776beb27023c0c9",
+      "prompt_hash": "dc4902f3afbf980bcf5c2efa849d8fa93ebf55c2c14cf7790f4ec22d8a6da076",
+      "response_trace": {
+        "mode": "replay",
+        "executed_calls_this_process": 0,
+        "replayed_calls_this_process": 2888,
+        "cost_from_shared_trace": true
+      }
+    },
+    "efficient_budget": {
+      "accuracy": 0.865,
+      "ci95": [
+        0.83,
+        0.8975
+      ],
+      "prompt_tokens": 915016,
+      "completion_tokens": 13081,
+      "latency_seconds": 251.01777571626008,
+      "git_sha": "780803a42bbd9d3559d60898d776beb27023c0c9",
+      "prompt_hash": "29befbfa4abefef06fd87da8169649c765bd28db9eb5157188c7a4c23e4a5254",
+      "response_trace": {
+        "mode": "record",
+        "executed_calls_this_process": 2708,
+        "replayed_calls_this_process": 0,
+        "cost_from_shared_trace": false
+      }
+    }
+  },
+  "comparisons": {
+    "shared_budget_minus_greedy": {
+      "delta": 0.0,
+      "delta_ci95": [
+        0.0,
+        0.0
+      ],
+      "paired_randomization_p": 1.0,
+      "corrected": 0,
+      "regressed": 0,
+      "answer_changes": [
+        {
+          "sample_id": "8564",
+          "baseline_answer": "b",
+          "candidate_answer": "e",
+          "baseline_score": 0.0,
+          "candidate_score": 0.0
+        }
+      ]
+    },
+    "shared_evidence_minus_greedy": {
+      "delta": 0.01,
+      "delta_ci95": [
+        0.0025,
+        0.02
+      ],
+      "paired_randomization_p": 0.125,
+      "corrected": 4,
+      "regressed": 0,
+      "answer_changes": [
+        {
+          "sample_id": "19947",
+          "baseline_answer": "a",
+          "candidate_answer": "b",
+          "baseline_score": 0.0,
+          "candidate_score": 1.0
+        },
+        {
+          "sample_id": "9795",
+          "baseline_answer": "b",
+          "candidate_answer": "a",
+          "baseline_score": 0.0,
+          "candidate_score": 1.0
+        },
+        {
+          "sample_id": "4411",
+          "baseline_answer": "b",
+          "candidate_answer": "a",
+          "baseline_score": 0.0,
+          "candidate_score": 1.0
+        },
+        {
+          "sample_id": "13487",
+          "baseline_answer": "b",
+          "candidate_answer": "a",
+          "baseline_score": 0.0,
+          "candidate_score": 1.0
+        },
+        {
+          "sample_id": "8564",
+          "baseline_answer": "b",
+          "candidate_answer": "e",
+          "baseline_score": 0.0,
+          "candidate_score": 0.0
+        }
+      ]
+    },
+    "shared_evidence_minus_shared_budget": {
+      "delta": 0.01,
+      "delta_ci95": [
+        0.0025,
+        0.02
+      ],
+      "paired_randomization_p": 0.125,
+      "corrected": 4,
+      "regressed": 0,
+      "answer_changes": [
+        {
+          "sample_id": "19947",
+          "baseline_answer": "a",
+          "candidate_answer": "b",
+          "baseline_score": 0.0,
+          "candidate_score": 1.0
+        },
+        {
+          "sample_id": "9795",
+          "baseline_answer": "b",
+          "candidate_answer": "a",
+          "baseline_score": 0.0,
+          "candidate_score": 1.0
+        },
+        {
+          "sample_id": "4411",
+          "baseline_answer": "b",
+          "candidate_answer": "a",
+          "baseline_score": 0.0,
+          "candidate_score": 1.0
+        },
+        {
+          "sample_id": "13487",
+          "baseline_answer": "b",
+          "candidate_answer": "a",
+          "baseline_score": 0.0,
+          "candidate_score": 1.0
+        }
+      ]
+    },
+    "efficient_budget_minus_greedy": {
+      "delta": 0.0025,
+      "delta_ci95": [
+        -0.0075,
+        0.0125
+      ],
+      "paired_randomization_p": 1.0,
+      "corrected": 3,
+      "regressed": 2,
+      "answer_changes": [
+        {
+          "sample_id": "13357",
+          "baseline_answer": "a",
+          "candidate_answer": "b",
+          "baseline_score": 1.0,
+          "candidate_score": 0.0
+        },
+        {
+          "sample_id": "11288",
+          "baseline_answer": "b",
+          "candidate_answer": "a",
+          "baseline_score": 1.0,
+          "candidate_score": 0.0
+        },
+        {
+          "sample_id": "17263",
+          "baseline_answer": "d",
+          "candidate_answer": "c",
+          "baseline_score": 0.0,
+          "candidate_score": 0.0
+        },
+        {
+          "sample_id": "2782",
+          "baseline_answer": "b",
+          "candidate_answer": "c",
+          "baseline_score": 0.0,
+          "candidate_score": 1.0
+        },
+        {
+          "sample_id": "20050",
+          "baseline_answer": "b",
+          "candidate_answer": "c",
+          "baseline_score": 0.0,
+          "candidate_score": 1.0
+        },
+        {
+          "sample_id": "11473",
+          "baseline_answer": "a",
+          "candidate_answer": "c",
+          "baseline_score": 0.0,
+          "candidate_score": 1.0
+        },
+        {
+          "sample_id": "8564",
+          "baseline_answer": "b",
+          "candidate_answer": "e",
+          "baseline_score": 0.0,
+          "candidate_score": 0.0
+        }
+      ]
+    },
+    "shared_evidence_minus_efficient_budget": {
+      "delta": 0.0075,
+      "delta_ci95": [
+        -0.0075,
+        0.0225
+      ],
+      "paired_randomization_p": 0.5078125,
+      "corrected": 6,
+      "regressed": 3,
+      "answer_changes": [
+        {
+          "sample_id": "13357",
+          "baseline_answer": "b",
+          "candidate_answer": "a",
+          "baseline_score": 0.0,
+          "candidate_score": 1.0
+        },
+        {
+          "sample_id": "11288",
+          "baseline_answer": "a",
+          "candidate_answer": "b",
+          "baseline_score": 0.0,
+          "candidate_score": 1.0
+        },
+        {
+          "sample_id": "17263",
+          "baseline_answer": "c",
+          "candidate_answer": "d",
+          "baseline_score": 0.0,
+          "candidate_score": 0.0
+        },
+        {
+          "sample_id": "19947",
+          "baseline_answer": "a",
+          "candidate_answer": "b",
+          "baseline_score": 0.0,
+          "candidate_score": 1.0
+        },
+        {
+          "sample_id": "2782",
+          "baseline_answer": "c",
+          "candidate_answer": "b",
+          "baseline_score": 1.0,
+          "candidate_score": 0.0
+        },
+        {
+          "sample_id": "20050",
+          "baseline_answer": "c",
+          "candidate_answer": "b",
+          "baseline_score": 1.0,
+          "candidate_score": 0.0
+        },
+        {
+          "sample_id": "11473",
+          "baseline_answer": "c",
+          "candidate_answer": "a",
+          "baseline_score": 1.0,
+          "candidate_score": 0.0
+        },
+        {
+          "sample_id": "9795",
+          "baseline_answer": "b",
+          "candidate_answer": "a",
+          "baseline_score": 0.0,
+          "candidate_score": 1.0
+        },
+        {
+          "sample_id": "4411",
+          "baseline_answer": "b",
+          "candidate_answer": "a",
+          "baseline_score": 0.0,
+          "candidate_score": 1.0
+        },
+        {
+          "sample_id": "13487",
+          "baseline_answer": "b",
+          "candidate_answer": "a",
+          "baseline_score": 0.0,
+          "candidate_score": 1.0
+        }
+      ]
+    }
+  },
+  "label_free_protocol_audit": {
+    "n": 400,
+    "manifests_completed": true,
+    "matched_configuration": true,
+    "supported_tasks": {
+      "facing_poles": 15,
+      "temperature_delta": 6,
+      "table_extreme": 1
+    },
+    "candidate_disagreements": 26,
+    "supported_disagreements": 7,
+    "facts_stable": 18,
+    "counterfactual_drop": 16,
+    "gate_passed": 13,
+    "changed_from_greedy": 4,
+    "fallback_reasons": {
+      "unsupported_task": 378,
+      "computed_answer_not_proposed": 3,
+      "incomplete_or_overflow_observation": 6
+    },
+    "parse_error_responses": 0,
+    "exposed_observation_records": 0,
+    "observation_diagnostics": {
+      "responses": 88,
+      "incomplete_responses": 11,
+      "literal_empty_blanks": 22,
+      "nonempty_or_invalid_blanks": 0,
+      "at_token_limit": 0
+    },
+    "policy_error_ids": [],
+    "memory_leak_ids": [],
+    "budget_audit": {
+      "call_trace_mismatches": [],
+      "budget_total_tokens": 928175,
+      "evidence_total_tokens": 928175,
+      "total_token_relative_difference": 0.0
+    },
+    "protocol_ok": true
+  },
+  "selective_accuracy": 1.0,
+  "continue_to_validation": true,
+  "internal_greedy_anchor": {
+    "accuracy": 0.8625,
+    "standalone_answer_mismatch_ids": [
+      "8564"
+    ],
+    "evidence_delta": 0.01,
+    "delta_ci95": [
+      0.0025,
+      0.02
+    ],
+    "corrected": 4,
+    "regressed": 0
+  },
+  "independent_budget_audit": {
+    "relative_token_difference": 8.403587685511891e-05,
+    "within_five_percent": true,
+    "sampling_counts": {
+      "6": 219,
+      "7": 147,
+      "8": 9,
+      "9": 1,
+      "10": 2,
+      "11": 0,
+      "12": 22
+    },
+    "cost_targets_contain_answers": false,
+    "allocation": "cost_only_cumulative_6_to_12",
+    "reference_costs_known_after_reference_inference": true
+  }
+}

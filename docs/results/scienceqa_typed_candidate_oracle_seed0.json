@@ -1,0 +1,102 @@
+{
+  "dataset": "scienceqa_img",
+  "n": 400,
+  "selected_score": 0.8725,
+  "candidate_oracle_score": 0.8875,
+  "oracle_gap": 0.015,
+  "selection_regrets": 6,
+  "all_candidates_same": 374,
+  "mean_unique_answers": 1.065,
+  "regret_details": [
+    {
+      "sample_id": "9559",
+      "selected_answer": "b",
+      "candidate_answers": [
+        "b",
+        "a",
+        "b",
+        "b",
+        "b",
+        "b"
+      ],
+      "correct_candidate_indices": [
+        1
+      ]
+    },
+    {
+      "sample_id": "12604",
+      "selected_answer": "c",
+      "candidate_answers": [
+        "c",
+        "b",
+        "c",
+        "c",
+        "c",
+        "c"
+      ],
+      "correct_candidate_indices": [
+        1
+      ]
+    },
+    {
+      "sample_id": "12415",
+      "selected_answer": "a",
+      "candidate_answers": [
+        "a",
+        "c",
+        "a",
+        "a",
+        "a",
+        "a"
+      ],
+      "correct_candidate_indices": [
+        1
+      ]
+    },
+    {
+      "sample_id": "2782",
+      "selected_answer": "b",
+      "candidate_answers": [
+        "b",
+        "c",
+        "b",
+        "b",
+        "b",
+        "b"
+      ],
+      "correct_candidate_indices": [
+        1
+      ]
+    },
+    {
+      "sample_id": "11473",
+      "selected_answer": "a",
+      "candidate_answers": [
+        "a",
+        "c",
+        "a",
+        "a",
+        "a",
+        "a"
+      ],
+      "correct_candidate_indices": [
+        1
+      ]
+    },
+    {
+      "sample_id": "10057",
+      "selected_answer": "c",
+      "candidate_answers": [
+        "c",
+        "b",
+        "c",
+        "c",
+        "c",
+        "c"
+      ],
+      "correct_candidate_indices": [
+        1
+      ]
+    }
+  ]
+}
