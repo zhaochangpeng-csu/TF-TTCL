@@ -9,7 +9,9 @@ Answer accuracy, visual grounding and transferable rule utility are separate.
 
 Current implementation supplies read-only baseline I/O case cards, tested
 pseudo-pair/write/random-retrieval policies, and a finite reasoning-format
-smoke launcher. **The four-arm online memory runner and its results are not
+smoke launcher. The [V2 20-item format smoke](results/scienceqa_transfer_format_smoke.md)
+passed all 40 calls without opening labels; GPU 2 was released.
+**The four-arm online memory runner and its results are not
 yet implemented/completed.** The frozen validation regression failed its
 contract audit and remains unscored; do not loosen that audit retrospectively.
 See [actual input/output review](results/scienceqa_baseline_io_inspection.md).
@@ -32,6 +34,17 @@ latency totals. Format checks require nonempty sections, one valid final
 option and nontruncated output; they do NOT judge factual correctness. Stop
 after this checkpoint. The launcher releases only its own model process group.
 No extra model or embedding download is needed for this format check.
+
+First v1 run (system-only format instruction): 40/40 calls completed, but only
+1/40 has the required sections; 18,998 prompt + 1,489 completion tokens,
+22.49 seconds summed model latency. No labels read; GPU 2 released afterward.
+This is a failed **format** smoke, not a poor-accuracy result. Its exact raw
+requests remain in `transfer_format_v1_seed0_smoke20/response_trace`.
+V2 additionally puts the same observation/inference section requirements at
+the end of the user message, based solely on unlabeled formatting failures.
+It uses a new output directory/namespace and keeps v1 untouched. No inference
+operator, physics gate or frozen validation prompt was changed. This is
+development on the same first-20 inputs, not a new held-out experiment.
 
 ```sh
 # Server repo, conda ttt, tmux ttt_ex; GPU 2 must be idle:
@@ -88,6 +101,12 @@ Requirements before four-arm inference:
   prompt/completion costs (shared replay is not new expenditure), and add an
   independent sampling/reflection baseline within ±5% total tokens. Identical
   call count or output caps alone do not establish budget matching.
+- Report prompt and completion tokens separately. Earlier controls match
+  **total** tokens, not necessarily the original plan's **generation** tokens;
+  do not call them strict generation-budget-matched. For the main comparison,
+  include a ±5% completion-token-matched control as well as the total-cost
+  control (or disclose which budget cannot be matched); also report measured
+  latency because prefill and decoding have different costs.
 - Include generic checking/reflection without memory, to test whether a
   helpful instruction rather than accumulated experience explains a gain.
 - Store exact source and retrieved rule content, rule-use/answer-change trace,

@@ -40,6 +40,17 @@ Reasoning: <how those facts and any text or knowledge lead to the answer>
 Final answer: <one current option letter only>
 These observations and reasoning are proposals, not certified facts."""
 
+FORMAT_USER_SUFFIX = """For this inspection, do NOT return only an option
+letter. Before the final-answer line, explicitly provide the following two
+sections. Keep each section to one or two short sentences, not a long chain
+of thought. Do not add explanations after the final-answer line.
+Observed: State directly visible task-relevant evidence, or explicitly state
+that the image is not required or the evidence is insufficient.
+Reasoning: Explain the brief inference from the observations, context, and
+knowledge, without claiming that inferred facts are directly visible.
+Final answer: One option letter from the current options.
+Output all three section labels in this exact order, starting with Observed:."""
+
 
 def format_ok(response, choices):
     text = response.content
@@ -74,7 +85,7 @@ def main():
         raise FileExistsError("New output directory required; do not overwrite a smoke")
     args.output.mkdir(parents=True)
     namespace = {"dataset": "scienceqa_img", "source_sha256": sha256_file(args.inference),
-                 "seed": args.seed, "model_revision": args.revision, "purpose": "transfer_format_smoke_v1"}
+                 "seed": args.seed, "model_revision": args.revision, "purpose": "transfer_format_smoke_v2_user_sections"}
     backend = ResponseTraceBackend(OpenAIVLMClient(args.base_url, args.model, os.getenv("OPENAI_API_KEY", "EMPTY")),
                                    args.output / "response_trace", namespace, "record")
     ids = [e.sample.sample_id for e in examples]
@@ -83,7 +94,7 @@ def main():
                 "git_worktree_status": subprocess.check_output(["git", "status", "--porcelain"], text=True).strip(),
                 "script_sha256": sha256_file(Path(__file__)), "model": args.model,
                 "model_revision": args.revision, "seed": args.seed, "input_sha256": namespace["source_sha256"],
-                "ordered_ids": ids, "prompt_sha256": hashlib.sha256(TRAJECTORY_SYSTEM.encode()).hexdigest(),
+                "ordered_ids": ids, "prompt_sha256": hashlib.sha256((TRAJECTORY_SYSTEM + "\n" + FORMAT_USER_SUFFIX).encode()).hexdigest(),
                 "max_tokens": 384, "expected_calls": args.count * 2, "memory_enabled": False}
     (args.output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     results = []
@@ -94,7 +105,7 @@ def main():
                 sample.validate_images()
                 for offset, temperature in enumerate((0.0, 0.7)):
                     sampling = SamplingConfig(temperature, 0.9 if temperature else None, 384, args.seed + index * 100 + offset)
-                    text = format_question(sample.question, sample.choices, sample.metadata)
+                    text = format_question(sample.question, sample.choices, sample.metadata) + "\n\n" + FORMAT_USER_SUFFIX
                     response = backend.generate(TRAJECTORY_SYSTEM, text, sample.image_paths, sampling)
                     row = {"sample_id": sample.sample_id, "sample_index": index, "sampling": asdict(sampling),
                            "input": sample.to_public_dict(), "user_text": text, "raw_response": asdict(response),

@@ -27,6 +27,10 @@ outputs "reasoning trajectories" would be inaccurate. Distilling a reasoning
 contrast from letters alone invites a newly invented, post-hoc explanation.
 Future reasoning prompts must be identical across all transfer arms; simply
 requesting reasoning can itself change accuracy and cost.
+The extended inspection also counts bare letters: 2,095/2,097 greedy outputs
+contain no reasoning. All 2,097 fidelity-candidate image hashes are identical
+to their real-image hashes: this particular re-encoding provides repeated
+model calls, **not a distinct visual perturbation**.
 
 ## Concrete cases, selected without correctness labels
 
@@ -53,7 +57,7 @@ Standalone greedy has no request trace; its request is explicitly marked
    tasks, text/knowledge-sufficient tasks, and ambiguous cases. Do not force all
    answers to become image-entailed, and do not call image independence an error.
 2. **Text-match retrieval can transfer the wrong conclusion.** 94 groups,
-   containing 362 items, have identical question-and-options text but may
+   containing 362 items, have identical question-and-options text but may use
    different images. Retrieve a procedure such as inspecting facing endpoints,
    then re-instantiate its evidence on the current image; never copy old letters
    or old observed poles. Count image differences before claiming every group
@@ -87,7 +91,9 @@ Shared prompt/schema/operator SHA:
 `dc4902f3afbf980bcf5c2efa849d8fa93ebf55c2c14cf7790f4ec22d8a6da076`.
 Raw snapshot: server `core/exp_res/mm/inspection/validation_typed_v3p1_unscored.json`;
 local `core/exp_res/inspection/validation_typed_v3p1_unscored.json` (both ignored
-by Git). Images and large trace caches are not committed.
+by Git). Extended counts are in server
+`core/exp_res/mm/inspection/validation_typed_v3p1_unscored_v2.json`.
+Images and large trace caches are not committed.
 
 Run `scripts/inspect_baseline_io.py --help` to create new immutable JSON/Markdown
 case cards; it never makes a model call or accepts a label path. Keep this
