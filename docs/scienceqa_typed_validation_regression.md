@@ -1,7 +1,10 @@
 # Frozen ScienceQA validation regression (2026-10-13)
 
-Status: preparation passed 63 tests; automatic smoke/full regression is ready
-to launch, with no new validation scores. Method is frozen v3.1;
+Status: unscored smoke passed; full greedy/shared-budget/shared-evidence finished,
+but one schema-contract violation caused the predeclared audit to fail (exit 5).
+Independent budget did not run; labels were not scored. See the
+[unscored I/O and failure review](results/scienceqa_baseline_io_inspection.md).
+Method is frozen v3.1;
 memory remains disabled. Prompts, schemas, operators, gates, sampling settings,
 model revision and ablations are unchanged from the
 [400-item development result](results/scienceqa_typed_evidence_seed0.md).
@@ -73,5 +76,8 @@ weighted memory and random/poisoned-memory controls. Measure downstream
 learning, coverage, evidence-grounding failures and contamination propagation,
 with labels used only offline. Memory quality should ultimately mean net
 transfer benefit under noise and matched cost, not unachievable zero noise.
-These comparisons are a future proposal, not already-validated results or
-authorization to tune from this validation stream.
+The user has authorized the separate
+[noisy-experience transfer pilot](noisy_experience_transfer_pilot.md).
+These comparisons are not already-validated results or authorization to tune
+this frozen validation stream. Start with real input/output inspection and a
+new train-only reasoning-format smoke, then freeze the online comparison.
