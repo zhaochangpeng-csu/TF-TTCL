@@ -1,5 +1,14 @@
 # ScienceQA train: first isolated text-augmentation baseline
 
+Version 2. The version-1 **unscored** 20-item smoke passed format and image
+audits but changed the question text for only 5/20 items (5/40 possible
+variants); the two vote arms had no answer disagreements. No labels were read.
+Before any 400-item run, the rewrite prompt was revised to demand two fluent,
+distinct questions with examples, and the guard was tightened against
+ellipses and newly invented named entities. Version 1 remains an ignored raw
+smoke artifact, not a scored comparison. Version 2 requires its own new
+unscored smoke and is the only version eligible for the 400-item run.
+
 Protocol frozen before reading this slice's labels. Model:
 Qwen2.5-VL-7B-Instruct, revision
 `cc594898137f460bfe9f0759e9844b3ce807cfb5`, seed 0, GPU 2.

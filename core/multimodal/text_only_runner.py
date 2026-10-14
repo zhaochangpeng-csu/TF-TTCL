@@ -16,16 +16,28 @@ from typing import Any, Sequence
 
 from .answers import normalize_answer
 from .image_ops import sha256_file
-from .prompts import PARAPHRASE_SYSTEM, format_question
-from .runner import _semantic_variant_is_safe, _split_context_and_query
+from .prompts import format_question
+from .runner import _protected_query_features, _semantic_variant_is_safe, _split_context_and_query
 from .schema import MultimodalSample, SamplingConfig
 from .transfer_runner import answer_in_choices, canonical_json, digest
 from scripts.run_transfer_format_smoke import FORMAT_USER_SUFFIX, TRAJECTORY_SYSTEM, format_ok
 
 
-VERSION = "text_only_vote_v1"
+VERSION = "text_only_vote_v2"
 ARMS = ("greedy", "same_text_vote", "text_aug_vote")
 CANDIDATES = ("original_greedy", "same_text_1", "same_text_2", "text_aug_1", "text_aug_2")
+TEXT_REWRITE_SYSTEM = """Rewrite the supplied QUESTION CLAUSE twice without answering it.
+Make two distinct, fluent questions by changing word order or grammatical
+phrasing. Keep every content word, entity, number, comparison, negation and
+image reference. Do not add a factual claim, answer, option, or named entity.
+Do not repeat the original verbatim, use an empty string, or use ellipses.
+The surrounding passage and answer options are absent and will be restored
+unchanged. Return JSON only with exactly two nonempty strings in `questions`.
+Examples:
+Input: What is the capital of Maryland?
+Output: {"questions":["What city is the capital of Maryland?","What is Maryland's capital city?"]}
+Input: Which country is highlighted?
+Output: {"questions":["Which country has been highlighted?","What country is highlighted in the image?"]}"""
 PARAPHRASE_SCHEMA = {"type": "object", "properties": {
     "questions": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 2}},
     "required": ["questions"], "additionalProperties": False}
@@ -51,8 +63,10 @@ def safe_variants(question: str, response_text: str) -> tuple[list[str], list[bo
         proposed = []
     variants, changed = [], []
     for value in (proposed + [query, query])[:2]:
-        valid = (isinstance(value, str) and _semantic_variant_is_safe(query, value)
-                 and _retains_content_words(query, value))
+        valid = (isinstance(value, str) and "..." not in value and "…" not in value
+                 and value.count("?") <= 1 and _semantic_variant_is_safe(query, value)
+                 and _retains_content_words(query, value)
+                 and _protected_query_features(query)[3] == _protected_query_features(value)[3])
         rewritten = value.strip() if valid else query
         variants.append(context + rewritten)
         changed.append(rewritten != query)
@@ -78,7 +92,7 @@ class TextOnlyRunner:
         self.manifest_path = output / "manifest.json"
         self.seed = seed
         self.git_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
-        self.prompt_sha = digest([PARAPHRASE_SYSTEM, PARAPHRASE_SCHEMA,
+        self.prompt_sha = digest([TEXT_REWRITE_SYSTEM, PARAPHRASE_SCHEMA,
                                   TRAJECTORY_SYSTEM, FORMAT_USER_SUFFIX])
         self.code_sha = digest([sha256_file(Path(__file__)),
                                 sha256_file(Path(__file__).with_name("runner.py")),
@@ -155,7 +169,7 @@ class TextOnlyRunner:
                 sample = self.samples[index]
                 sample.validate_images()
                 _, query = _split_context_and_query(sample.question)
-                rewrite = self._call(PARAPHRASE_SYSTEM, query, (), index, 1, 0.0,
+                rewrite = self._call(TEXT_REWRITE_SYSTEM, query, (), index, 1, 0.0,
                                      256, PARAPHRASE_SCHEMA)
                 variants, changed = safe_variants(sample.question, rewrite.content)
                 greedy = self._candidate(sample, index, CANDIDATES[0], sample.question, 10, 0.0)

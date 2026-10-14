@@ -39,6 +39,10 @@ class TextOnlyRunnerTests(unittest.TestCase):
                                    '{"questions":["Which animal is highlighted?",'
                                    '"What country is highlighted in the picture?"]}')
         self.assertEqual(changed, [False, True])
+        _, changed = safe_variants("Which country is highlighted?",
+                                   '{"questions":["Which country is highlighted... ?",'
+                                   '"Which country is highlighted, Grenada?"]}')
+        self.assertEqual(changed, [False, False])
         self.assertEqual(choose_vote([{"answer": "a", "format_ok": True},
                                       {"answer": "b", "format_ok": True},
                                       {"answer": "b", "format_ok": True}]), "b")

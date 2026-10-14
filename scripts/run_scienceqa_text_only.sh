@@ -15,8 +15,8 @@ case "$run_kind" in
   dev400) count=400 ;;
   *) echo "TEXT_ONLY_RUN_KIND must be smoke20 or dev400" >&2; exit 2 ;;
 esac
-run_root="core/exp_res/mm/scienceqa_train/qwen25vl/text_only_v1_seed0_${run_kind}"
-smoke_root="core/exp_res/mm/scienceqa_train/qwen25vl/text_only_v1_seed0_smoke20"
+run_root="core/exp_res/mm/scienceqa_train/qwen25vl/text_only_v2_seed0_${run_kind}"
+smoke_root="core/exp_res/mm/scienceqa_train/qwen25vl/text_only_v2_seed0_smoke20"
 
 if [[ ! -f "${subset}.manifest.json" ]]; then
   "$python_bin" scripts/create_label_isolated_subset.py \
