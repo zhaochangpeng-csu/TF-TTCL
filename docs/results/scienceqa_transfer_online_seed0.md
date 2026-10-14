@@ -1,5 +1,9 @@
 # ScienceQA train: four-arm online pseudo-rule transfer (development)
 
+Follow-up: [placebo history control](scienceqa_transfer_placebo_seed0.md)
+completed on the same development stream. Placebo reached 91.50% versus
+91.75% for noisy retrieval; their paired difference was not significant.
+
 Date: 2026-10-14. Frozen run SHA: `0eab28f2d05607fab429975bf40296b66804951a`.
 Model: Qwen2.5-VL-7B-Instruct, seed 0, 400 disjoint ScienceQA train items.
 This is a single-stream development pilot, not an untouched validation result.
