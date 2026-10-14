@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the frozen, label-blind ScienceQA train text-only paired comparison."""
+"""Run the frozen, label-blind ScienceQA text-only paired comparison."""
 from __future__ import annotations
 
 import argparse
@@ -20,8 +20,10 @@ from scripts.inspect_baseline_io import read_rows, require_label_free
 
 def checked_samples(inference: Path, subset_manifest: Path, count: int):
     meta = json.loads(subset_manifest.read_text())
-    if (meta.get("seed"), meta.get("offset"), meta.get("count")) != (20261011, 2100, 400):
-        raise ValueError("Not the predeclared disjoint text-only train slice")
+    allowed_slices = {(20261011, 2100, 400), (20261013, 0, 2097)}
+    slice_key = (meta.get("seed"), meta.get("offset"), meta.get("count"))
+    if slice_key not in allowed_slices:
+        raise ValueError("Not a predeclared text-only train or validation slice")
     if Path(meta["inference_path"]).resolve() != inference.resolve():
         raise ValueError("Subset/inference path mismatch")
     rows = read_rows(inference)
@@ -29,8 +31,8 @@ def checked_samples(inference: Path, subset_manifest: Path, count: int):
         raise ValueError("Ordered IDs changed")
     for row in rows:
         require_label_free(row)
-    if not 1 <= count <= 400:
-        raise ValueError("Count must be 1..400")
+    if count not in {20, meta["count"]}:
+        raise ValueError("Count must be the 20-item smoke or complete declared slice")
     examples = load_local_dataset(str(inference), "scienceqa_img", str(inference.parent), limit=count)
     if len(examples) != count or any(item.target is not None for item in examples):
         raise ValueError("Inference adapter exposed a target")
@@ -45,7 +47,7 @@ def main():
     parser.add_argument("--inference", type=Path, required=True)
     parser.add_argument("--subset-manifest", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--count", type=int, choices=(20, 400), required=True)
+    parser.add_argument("--count", type=int, choices=(20, 400, 2097), required=True)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--base-url", default="http://127.0.0.1:9000/v1")
     parser.add_argument("--model", default="Qwen/Qwen2.5-VL-7B-Instruct")

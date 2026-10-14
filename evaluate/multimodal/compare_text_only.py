@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from core.multimodal.datasets import load_local_dataset
+from core.multimodal.runner import _split_context_and_query
 from core.multimodal.schema import GenerationResponse
 from core.multimodal.text_only_runner import ARMS, CANDIDATES, VERSION, choose_vote, safe_variants
 from core.multimodal.transfer_runner import answer_in_choices
@@ -60,12 +62,35 @@ def _cost(responses: list[dict]) -> dict[str, float]:
             for key in ("prompt_tokens", "completion_tokens", "latency_seconds")}
 
 
+def declared_subgroups(question: str) -> set[str]:
+    """Fixed, label-blind task slices chosen before validation scoring."""
+    _, query = _split_context_and_query(question)
+    groups = set()
+    if re.fullmatch(r"which (?:country|state|continent) is highlighted\?", query.strip(), re.I):
+        groups.add("highlighted_map")
+    if "magnet" in question.lower():
+        groups.add("magnet")
+    if re.match(r"what is the capital of\b", query.strip(), re.I):
+        groups.add("capital")
+    return groups
+
+
+def _holm_adjust(p_values: dict[str, float]) -> dict[str, float]:
+    adjusted = {}
+    previous = 0.0
+    for rank, (name, value) in enumerate(sorted(p_values.items(), key=lambda pair: pair[1])):
+        previous = max(previous, min(1.0, value * (len(p_values) - rank)))
+        adjusted[name] = previous
+    return adjusted
+
+
 def compare(path: Path, labels_path: Path, expected_n: int = 400) -> dict:
     manifest, rows = audit_text_only(path, expected_n)
     targets = load_local_dataset(str(labels_path), "scienceqa_img", str(labels_path.parent))
-    if (expected_n != 400 or [item.sample.sample_id for item in targets] != manifest["ordered_ids"]
+    if (expected_n not in {400, 2097}
+            or [item.sample.sample_id for item in targets] != manifest["ordered_ids"]
             or any(item.target is None for item in targets)):
-        raise ValueError("Isolated labels do not match the complete 400-item stream")
+        raise ValueError("Isolated labels do not match the complete declared stream")
     scores = {arm: [score_prediction("scienceqa_img", row["arms"][arm]["answer"],
                                      item.target.answers, item.target.metadata)
                     for row, item in zip(rows, targets)] for arm in ARMS}
@@ -94,6 +119,23 @@ def compare(path: Path, labels_path: Path, expected_n: int = 400) -> dict:
                                                   candidates[3]["response"], candidates[4]["response"]])):
             for key, value in _cost(responses).items():
                 costs[arm][key] += value
+    subgroups = {}
+    for group in ("highlighted_map", "magnet", "capital"):
+        indices = [i for i, row in enumerate(rows) if group in declared_subgroups(row["question"])]
+        left = [scores["same_text_vote"][i] for i in indices]
+        right = [scores["text_aug_vote"][i] for i in indices]
+        subgroups[group] = {"n": len(indices),
+                            "rewrite_coverage": sum(any(rows[i]["rewrite"]["changed"]) for i in indices),
+                            "accuracy": {arm: sum(scores[arm][i] for i in indices) / len(indices)
+                                         if indices else None for arm in ARMS},
+                            "text_minus_same": {"corrected": sum(b > a for a, b in zip(left, right)),
+                                                "harmed": sum(b < a for a, b in zip(left, right)),
+                                                "paired_delta_ci": paired_bootstrap_delta_ci(left, right),
+                                                "paired_randomization_p": paired_randomization_p_value(left, right)}}
+    adjusted = _holm_adjust({name: data["text_minus_same"]["paired_randomization_p"]
+                             for name, data in subgroups.items()})
+    for name in subgroups:
+        subgroups[name]["text_minus_same"]["holm_adjusted_p_across_three_slices"] = adjusted[name]
     return {"status": "scored_after_paired_audit", "n": expected_n,
             "run_git_sha": manifest["git_sha"], "input_sha256": manifest["input_sha256"],
             "labels_sha256": sha256_file(labels_path), "results": results, "logical_cost": costs,
@@ -101,8 +143,12 @@ def compare(path: Path, labels_path: Path, expected_n: int = 400) -> dict:
             "rewrite_changed_variants": sum(sum(row["rewrite"]["changed"]) for row in rows),
             "answer_disagreement_same_vs_text": sum(
                 row["arms"]["same_text_vote"]["answer"] != row["arms"]["text_aug_vote"]["answer"]
-                for row in rows),
-            "interpretation": "Single-model, single-stream development test of text augmentation, not memory or evidence verification."}
+                for row in rows), "predeclared_subgroups": subgroups,
+            "interpretation": ("Single-model, complete ScienceQA-IMG validation baseline; "
+                               "not memory or evidence verification."
+                               if expected_n == 2097 else
+                               "Single-model, single-stream development test of text augmentation, "
+                               "not memory or evidence verification.")}
 
 
 def main():

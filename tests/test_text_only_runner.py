@@ -7,7 +7,7 @@ from pathlib import Path
 
 from core.multimodal.schema import GenerationResponse, MultimodalSample
 from core.multimodal.text_only_runner import TextOnlyRunner, choose_vote, safe_variants
-from evaluate.multimodal.compare_text_only import audit_text_only
+from evaluate.multimodal.compare_text_only import audit_text_only, declared_subgroups, _holm_adjust
 
 
 class FakeBackend:
@@ -31,6 +31,18 @@ class FakeBackend:
 
 
 class TextOnlyRunnerTests(unittest.TestCase):
+    def test_declared_validation_slices_are_label_blind(self):
+        self.assertEqual(declared_subgroups("Which country is highlighted?"), {"highlighted_map"})
+        self.assertEqual(declared_subgroups("Context:\nA map.\n\nQuestion:\nWhich state is highlighted?"),
+                         {"highlighted_map"})
+        self.assertEqual(declared_subgroups("Which magnet attracts this object?"), {"magnet"})
+        self.assertEqual(declared_subgroups("What is the capital of France?"), {"capital"})
+        self.assertEqual(declared_subgroups("Which country is shaded?"), set())
+
+    def test_holm_adjustment(self):
+        self.assertEqual(_holm_adjust({"a": .01, "b": .04, "c": .03}),
+                         {"a": .03, "c": .06, "b": .06})
+
     def test_rewrite_fallback_and_vote(self):
         variants, changed = safe_variants("Which country is highlighted?", "not json")
         self.assertEqual(variants, ["Which country is highlighted?"] * 2)
