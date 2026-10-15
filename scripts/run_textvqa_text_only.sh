@@ -106,7 +106,7 @@ setsid env CUDA_VISIBLE_DEVICES=2 VLLM_USE_FLASHINFER_SAMPLER=0 \
   --gpu-memory-utilization 0.85 --max-model-len 32768 >>"$run_root/vllm.log" 2>&1 &
 service_pid="$!"
 ready=0
-for _ in $(seq 1 120); do
+for _ in $(seq 1 600); do
   if ! kill -0 "$service_pid" 2>/dev/null; then
     echo "Owned vLLM failed; see $run_root/vllm.log" >&2
     exit 3
@@ -118,7 +118,7 @@ for _ in $(seq 1 120); do
   sleep 2
 done
 if [[ "$ready" != 1 ]]; then
-  echo "Owned vLLM did not become ready." >&2
+  echo "Owned vLLM did not become ready within 20 minutes." >&2
   exit 4
 fi
 nvidia-smi -i 2 --query-gpu=index,memory.used,utilization.gpu --format=csv >"$run_root/gpu_loaded.csv"

@@ -43,7 +43,8 @@ set; create label-isolated inputs; run 20 unscored smoke and audit; run all
 labels stay closed and do not drive prompt changes. The process owns a vLLM
 service on GPU 2 and terminates it on exit, including failure.
 
-Status (2026-10-15): the official validation annotation was downloaded and
-hash-checked on the local machine; selective image acquisition is in progress.
-The server itself cannot reach the official host. No GPU run or score has
-started.
+Pre-run status when this protocol was frozen (2026-10-15): the official
+validation annotation was downloaded and hash-checked on the local machine;
+selective image acquisition was in progress. The server itself could not
+reach the official host. No GPU run or score had started. Final outcomes are
+recorded separately in [textvqa_text_only_full5000.md](textvqa_text_only_full5000.md).
