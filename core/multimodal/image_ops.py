@@ -6,7 +6,7 @@ import hashlib
 from pathlib import Path
 from typing import List, Sequence, Tuple
 
-from PIL import Image, ImageEnhance, ImageStat
+from PIL import Image, ImageChops, ImageEnhance, ImageFilter, ImageStat
 
 
 def sha256_file(path: str) -> str:
@@ -32,6 +32,38 @@ def make_fidelity_views(
             image.save(target, format="PNG", optimize=False)
         views.append(str(target))
     return views
+
+
+def make_textvqa_photometric_views(
+    image_paths: Sequence[str], output_dir: Path, sample_id: str
+) -> List[List[str]]:
+    """Two fixed, full-frame OCR views with unchanged dimensions and geometry.
+
+    No crop, flip, rotation, resizing, grayscale conversion, or JPEG loss is
+    introduced. The interventions are intentionally mild; they are not
+    guaranteed to preserve every colour-sensitive answer and must be audited.
+    """
+    output_dir.mkdir(parents=True, exist_ok=True)
+    safe_id = hashlib.sha256(sample_id.encode("utf-8")).hexdigest()[:20]
+    variants: List[List[str]] = [[], []]
+    for index, source_path in enumerate(image_paths):
+        with Image.open(source_path) as opened:
+            source = opened.convert("RGB")
+            transformed = (
+                source.filter(ImageFilter.UnsharpMask(radius=1, percent=60, threshold=3)),
+                ImageEnhance.Contrast(source).enhance(1.08),
+            )
+            for variant_index, view in enumerate(transformed):
+                target = output_dir / f"{safe_id}_{index}_photo{variant_index + 1}.png"
+                if target.exists():
+                    with Image.open(target) as existing:
+                        if (existing.size != source.size or existing.mode != "RGB"
+                                or ImageChops.difference(existing, view).getbbox() is not None):
+                            raise ValueError(f"Existing image view differs from fixed transform: {target}")
+                else:
+                    view.save(target, format="PNG", optimize=False)
+                variants[variant_index].append(str(target))
+    return variants
 
 
 def make_blank_views(
