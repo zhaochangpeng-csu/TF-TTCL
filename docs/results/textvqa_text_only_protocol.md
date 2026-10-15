@@ -9,8 +9,12 @@ replication and should not be presented without the two negative datasets.
 Use official TextVQA v0.5.1 validation: 5,000 questions, 3,166 images, ten
 human answers each. The [dataset loader](https://huggingface.co/datasets/facebook/textvqa/blob/main/textvqa.py)
 locates validation images in `train_val_images.zip` under `train_images/`.
-`prepare_textvqa_official.py` imports only needed images, hashes sources, and
-checks sample/image counts. Answers are then isolated from inference JSONL.
+`prepare_textvqa_official.py` imports from a complete local ZIP. When the
+server cannot reach the official host, `fetch_textvqa_val_images.py` instead
+uses HTTP range requests from a connected machine to fetch only the 3,166
+validation images (about 913 MB compressed), with per-image CRC checks and
+resumption. Both exporters check sample/image counts and create the same
+JSONL schema. Answers are then isolated from inference JSONL.
 
 Model: Qwen2.5-VL-7B-Instruct, revision
 `cc594898137f460bfe9f0759e9844b3ce807cfb5`, seed 0, GPU 2, no memory,
@@ -39,6 +43,7 @@ set; create label-isolated inputs; run 20 unscored smoke and audit; run all
 labels stay closed and do not drive prompt changes. The process owns a vLLM
 service on GPU 2 and terminates it on exit, including failure.
 
-Current blocker (2026-10-15): the server has no TextVQA validation assets,
-and its connection to the official annotation host times out. No GPU run or
-score has started.
+Status (2026-10-15): the official validation annotation was downloaded and
+hash-checked on the local machine; selective image acquisition is in progress.
+The server itself cannot reach the official host. No GPU run or score has
+started.
