@@ -43,6 +43,7 @@ verified. No memory, external teacher, or test-time gradient is used.
 
 GPU 2 is required and the launcher refuses to run while any compute PID is
 present. It owns and stops only its own vLLM process. Use `conda activate
-ttt`; execute long runs in the existing `ttt_ex` tmux session. The server
-was occupied by another compute process at protocol creation, so no GPU
-experiment was started then.
+ttt`; execute long runs in the existing `ttt_ex` tmux session. At protocol
+creation the server was occupied by another compute process, so no GPU
+experiment had started. The completed run and its post-score analysis are
+reported in [textvqa_image_joint_full5000.md](textvqa_image_joint_full5000.md).
