@@ -25,12 +25,16 @@ from .tf_ttcl_direct_selection import ScoredCandidate, select_closed, select_ope
 from .tf_ttcl_text_embedding import cosine
 
 
-VERSION = "tf_ttcl_mm_direct_v1"
+VERSION = "tf_ttcl_mm_direct_v2"
 ARMS = ("greedy", "vote_no_rewrite", "select_no_memory", "tf_ttcl_mm_direct")
-TEACHER_SYSTEM = ("You are a careful visual question answering teacher. Reason briefly from "
-                  "the supplied image and question. End with `Final answer: <answer>`. ")
-STUDENT_SYSTEM = ("You are a visual question answering student. Independently reason from "
-                  "the supplied image and question. End with `Final answer: <answer>`. ")
+TEACHER_SYSTEM = ("You are a careful visual question answering teacher. First write two short "
+                  "sentences explaining the evidence and inference; say if the image is not "
+                  "needed. Never output just an option letter. Use exactly these two sections:\n"
+                  "Reasoning: <two short sentences>\nFinal answer: <one option letter>.")
+STUDENT_SYSTEM = ("You are a visual question answering student. Independently write two short "
+                  "sentences explaining the evidence and inference; say if the image is not "
+                  "needed. Never output just an option letter. Use exactly these two sections:\n"
+                  "Reasoning: <two short sentences>\nFinal answer: <one option letter>.")
 TUTOR_SYSTEM = ("Rewrite only the question text into four semantically equivalent phrasings. "
                 "Preserve entities, numbers, negation, comparisons, image references, and the "
                 "question target. Do not answer, add facts, or describe any image. Return JSON "
@@ -49,11 +53,17 @@ def _digest(value: Any) -> str:
                                   separators=(",", ":")).encode()).hexdigest()
 
 
+def split_question_clause(question: str) -> tuple[str, str]:
+    """Keep ScienceQA context/hint byte-identical; Tutor sees only the question clause."""
+    prefix, separator, clause = question.rpartition("\n\nQuestion:\n")
+    return (prefix + separator, clause) if separator else ("", question)
+
+
 def parse_variants(text: str, question: str) -> list[str]:
     """Keep exactly four question-only variants; log original-text fallbacks."""
     try:
         payload = json.loads(text.strip().removeprefix("```json").removesuffix("```").strip())
-        raw = payload.get("questions", [])
+        raw = payload.get("questions", []) if isinstance(payload, dict) else payload
     except (ValueError, TypeError, AttributeError):
         raw = []
     variants: list[str] = []
@@ -266,10 +276,12 @@ class DirectRunner:
             vote.append(candidate)
             vote_calls.append(call)
         vote_selection = self._select(vote, sample.dataset)
-        tutor_call = self._call(TUTOR_SYSTEM, sample.question, (), SamplingConfig(
+        context_prefix, question_clause = split_question_clause(sample.question)
+        tutor_call = self._call(TUTOR_SYSTEM, question_clause, (), SamplingConfig(
             temperature=0.7, top_p=0.9, max_tokens=384,
             seed=self.seed + 100 * index + 1))
-        variants = parse_variants(tutor_call["response"]["content"], sample.question)
+        variants = [context_prefix + item for item in
+                    parse_variants(tutor_call["response"]["content"], question_clause)]
         nomem = [teacher]
         nomem_calls = [teacher_call, tutor_call]
         for number, variant in enumerate(variants, 1):

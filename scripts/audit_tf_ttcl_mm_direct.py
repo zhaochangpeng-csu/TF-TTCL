@@ -5,12 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from core.multimodal.schema import GenerationResponse
-from core.multimodal.tf_ttcl_direct_runner import ARMS, VERSION
+from core.multimodal.tf_ttcl_direct_runner import ARMS, VERSION, split_question_clause
 from core.multimodal.tf_ttcl_direct_selection import ScoredCandidate, select_closed
 from scripts.inspect_baseline_io import read_rows, require_label_free
 from scripts.create_label_isolated_subset import sha256_file
@@ -27,6 +28,8 @@ def audit(output: Path, inference: Path, count: int) -> tuple[dict, list[dict]]:
         raise ValueError("Label-free input manifest mismatch")
     if len(rows) != count or len(inputs) < count:
         raise ValueError("Wrong row count")
+    reasoning_outputs = 0
+    answering_outputs = 0
     for item in inputs:
         require_label_free(item)
     for index, (row, source) in enumerate(zip(rows, inputs)):
@@ -35,6 +38,9 @@ def audit(output: Path, inference: Path, count: int) -> tuple[dict, list[dict]]:
             raise ValueError(f"Row {index}: order or label boundary changed")
         if set(row.get("arms", {})) != set(ARMS) or len(row.get("variants", [])) != 4:
             raise ValueError(f"Row {index}: incomplete arms or variants")
+        context_prefix, _ = split_question_clause(row["original_question"])
+        if any(not variant.startswith(context_prefix) for variant in row["variants"]):
+            raise ValueError(f"Row {index}: Tutor changed the protected context")
         if any(rule["sample_index"] >= index for bucket in row["retrieved_rules"].values()
                for rule in bucket):
             raise ValueError(f"Row {index}: current/future rule retrieved")
@@ -48,6 +54,9 @@ def audit(output: Path, inference: Path, count: int) -> tuple[dict, list[dict]]:
             if len(answering) != (1 if name == "greedy" else 5):
                 raise ValueError(f"Row {index} {name}: candidate count mismatch")
             for call in answering:
+                answering_outputs += 1
+                reasoning_outputs += bool(re.search(r"(?is)reasoning\s*:.{25,}?final answer\s*:",
+                                                   call["response"]["content"]))
                 expected_images = source.get("image_paths", source.get("image_path", source.get("image")))
                 expected_images = expected_images if isinstance(expected_images, list) else [expected_images]
                 if (call["image_hashes"] != row["image_hashes"]
@@ -72,6 +81,8 @@ def audit(output: Path, inference: Path, count: int) -> tuple[dict, list[dict]]:
             usage = arm["usage"]
             if usage["completion_tokens"] != sum(call["response"]["completion_tokens"] for call in calls):
                 raise ValueError(f"Row {index} {name}: token accounting mismatch")
+    if count == 20 and reasoning_outputs / max(answering_outputs, 1) < 0.8:
+        raise ValueError("Smoke failed: fewer than 80% of answers contain a reasoning trajectory")
     return manifest, rows
 
 

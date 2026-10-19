@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from core.multimodal.schema import GenerationResponse, MultimodalSample
-from core.multimodal.tf_ttcl_direct_runner import DirectRunner, parse_variants, retrieve_rules
+from core.multimodal.tf_ttcl_direct_runner import DirectRunner, parse_variants, split_question_clause
 from core.multimodal.tf_ttcl_text_embedding import cosine
 from scripts.create_label_isolated_subset import create_subset
 
@@ -34,6 +34,11 @@ class DirectRunnerTests(unittest.TestCase):
         variants = parse_variants('{"questions":["Which 3?","Which 4?","How many 3?"]}',
                                   "How many 3?")
         self.assertEqual(variants, ["Which 3?", "How many 3?", "How many 3?", "How many 3?"])
+        self.assertEqual(parse_variants('["Which 3?", "Which three?", "How many 4?"]',
+                                        "How many 3?")[:2], ["Which 3?", "How many 3?"])
+        prefix, clause = split_question_clause("Context:\nKeep this text.\n\nQuestion:\nWhich 3?")
+        self.assertEqual(prefix, "Context:\nKeep this text.\n\nQuestion:\n")
+        self.assertEqual(clause, "Which 3?")
 
     def test_cosine_requires_matching_dimensions(self):
         self.assertEqual(cosine((1.0, 0.0), (0.0, 1.0)), 0.0)
@@ -61,7 +66,8 @@ class DirectRunnerTests(unittest.TestCase):
             root = Path(directory)
             image = root / "image.png"
             image.write_bytes(b"fake-image")
-            samples = [MultimodalSample(str(i), "scienceqa_img", f"Question {i}?",
+            samples = [MultimodalSample(str(i), "scienceqa_img",
+                                        f"Context:\nKeep context {i}.\n\nQuestion:\nQuestion {i}?",
                                         (str(image),), ("first", "second")) for i in range(2)]
             output = root / "run"
             runner = DirectRunner(FakeBackend(), FakeEmbedder(), samples, output,
@@ -71,6 +77,8 @@ class DirectRunnerTests(unittest.TestCase):
             self.assertEqual(len(rows), 2)
             self.assertEqual(rows[0]["retrieved_rules"], {"positive": [], "negative": []})
             self.assertTrue(rows[0]["written_rules"])
+            self.assertTrue(all(variant.startswith("Context:\nKeep context 1.\n\nQuestion:\n")
+                                for variant in rows[1]["variants"]))
             self.assertTrue(all(rule["sample_index"] == 0 for bucket in rows[1]["retrieved_rules"].values()
                                 for rule in bucket))
             self.assertEqual(set(rows[1]["arms"]), {"greedy", "vote_no_rewrite",

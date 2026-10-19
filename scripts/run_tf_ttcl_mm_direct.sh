@@ -10,18 +10,18 @@ data_root="data/multimodal/scienceqa_modelscope_train"
 subset="$data_root/dev400_tf_ttcl_mm_direct"
 gpu_index="${GPU_INDEX:-3}"
 api_port="${API_PORT:-9000}"
-run_kind="${TF_TTCL_MM_RUN_KIND:-smoke20}"
+run_kind="${TF_TTCL_MM_RUN_KIND:-smoke20_v2}"
 case "$run_kind" in
-  smoke20) count=20 ;;
+  smoke20_v2) count=20 ;;
   dev400) count=400 ;;
-  *) echo "TF_TTCL_MM_RUN_KIND must be smoke20 or dev400" >&2; exit 2 ;;
+  *) echo "TF_TTCL_MM_RUN_KIND must be smoke20_v2 or dev400" >&2; exit 2 ;;
 esac
 if [[ ! "$gpu_index" =~ ^(0|2|3)$ ]]; then
   echo "Unsupported GPU index: $gpu_index" >&2
   exit 2
 fi
 run_root="core/exp_res/mm/tf_ttcl_mm_direct/qwen25vl/${run_kind}_seed0"
-smoke_root="core/exp_res/mm/tf_ttcl_mm_direct/qwen25vl/smoke20_seed0"
+smoke_root="core/exp_res/mm/tf_ttcl_mm_direct/qwen25vl/smoke20_v2_seed0"
 
 if [[ ! -f "${subset}.manifest.json" ]]; then
   if [[ -e "${subset}.inference.jsonl" || -e "${subset}.labels.jsonl" ]]; then
