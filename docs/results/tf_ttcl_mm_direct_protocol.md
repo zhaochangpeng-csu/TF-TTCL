@@ -23,7 +23,7 @@ verification, trust gate, or extra answer-refinement call.
 1. Pure selection tests must pass for all closed-task cases, open-task
    partitioning, and missing/incomplete/nonfinite logprobs. No candidate
    order or self-reported confidence may replace PPL.
-2. On an **idle** GPU 2, start an owned Qwen2.5-VL-7B service in `ttt`, send
+2. On an **idle** GPU 3 (user-authorized change on 2026-10-19), start an owned Qwen2.5-VL-7B service in `ttt`, send
    one label-free ScienceQA image request with `logprobs=True`, and verify
    `len(logprobs) == completion_tokens > 0` and all values/PPL finite.
    Record the raw response and stop the owned service. An absent or
@@ -46,6 +46,18 @@ questionable for short VQA final answers, so both full-response similarity
 and the selected short answers must be logged and diagnosed, not silently
 changed into a different algorithm.
 
-At protocol creation on 2026-10-18, GPU 2 was occupied by an unrelated
-Qwen3-4B vLLM service and `bokeh_eval` process. That model is not the target
-Qwen2.5-VL-7B, so no model request was sent and no process was stopped.
+The GPU 3 probe completed on commit `5f61849`: both the greedy and sampled
+image requests returned two finite token logprobs for two generated tokens;
+strict generation PPL was 1.2407 and 1.2692, respectively. `labels_read=false`.
+The owned service exited and GPU 3 returned to 2 MiB used. The original GPU 2
+queue timed out without stopping unrelated processes.
+
+The 400-item direct-transfer train stream uses seed `20261019` after excluding
+all earlier ScienceQA train inference IDs; only isolated public inputs enter
+the runner. `smoke20` and `dev400` are separate immutable output namespaces.
+The no-memory and online arms share identical Teacher/Tutor/Student requests
+through an immutable response trace when their prompts coincide. The full arm
+uses CPU Qwen3-Embedding-0.6B with last-token pooling for cosine top-30 rule
+retrieval, leaving GPU 3 exclusively to Qwen2.5-VL-7B. The prompt wording and
+ScienceQA answer format are task adaptations; they are logged and must not be
+described as byte-identical to the original GSM8K prompt implementation.
