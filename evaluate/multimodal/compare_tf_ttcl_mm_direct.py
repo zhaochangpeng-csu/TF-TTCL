@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline-only ScienceQA scoring after every direct-transfer arm passes audit."""
+"""Offline-only scoring after every direct-transfer arm passes audit."""
 from __future__ import annotations
 
 import argparse
@@ -38,12 +38,20 @@ def compare(run: Path, inference: Path, labels: Path, expected_n: int = 400) -> 
     manifest, rows = audit(run, inference, expected_n)
     if expected_n != 400:
         raise ValueError("Smoke must remain unscored; only complete dev400 may open labels")
-    targets = load_local_dataset(str(labels), "scienceqa_img", str(labels.parent))
+    dataset = manifest["dataset"]
+    if dataset not in {"scienceqa_img", "textvqa"}:
+        raise ValueError("Unsupported direct-transfer dataset")
+    if dataset == "textvqa":
+        subset_meta = json.loads((inference.parent / "manifest.json").read_text())
+        if (Path(subset_meta["labels_path"]).resolve() != labels.resolve()
+                or subset_meta["labels_sha256"] != sha256_file(labels)):
+            raise ValueError("TextVQA isolated labels do not match the frozen subset")
+    targets = load_local_dataset(str(labels), dataset, str(labels.parent))
     if len(targets) != expected_n or [target.sample.sample_id for target in targets] != manifest["ordered_ids"]:
         raise ValueError("Isolated labels do not match the completed ordered stream")
     if any(target.target is None for target in targets):
         raise ValueError("Missing offline target")
-    scores = {arm: [score_prediction("scienceqa_img", row["arms"][arm]["answer"],
+    scores = {arm: [score_prediction(dataset, row["arms"][arm]["answer"],
                                      target.target.answers, target.target.metadata)
                     for row, target in zip(rows, targets)] for arm in ARMS}
     baselines = ("greedy", "vote_no_rewrite", "select_no_memory")
@@ -61,9 +69,12 @@ def compare(run: Path, inference: Path, labels: Path, expected_n: int = 400) -> 
         for base in baselines:
             if arm == base:
                 continue
-            changed = Counter((int(a), int(b)) for a, b in zip(scores[base], values))
+            corrected = sum(b > a + 1e-12 for a, b in zip(scores[base], values))
+            harmed = sum(a > b + 1e-12 for a, b in zip(scores[base], values))
             result[f"vs_{base}"] = {
-                "corrected": changed[(0, 1)], "harmed": changed[(1, 0)],
+                "improved_items": corrected, "worsened_items": harmed,
+                "corrected": corrected if dataset == "scienceqa_img" else None,
+                "harmed": harmed if dataset == "scienceqa_img" else None,
                 "paired_delta_ci": paired_bootstrap_delta_ci(scores[base], values),
                 "paired_randomization_p": paired_randomization_p_value(scores[base], values),
             }
@@ -76,15 +87,27 @@ def compare(run: Path, inference: Path, labels: Path, expected_n: int = 400) -> 
         if len(indices) >= 20:
             by_subject[subject] = {"n": len(indices), **{
                 arm: sum(scores[arm][index] for index in indices) / len(indices) for arm in ARMS}}
-    return {"status": "scored_after_complete_four_arm_audit", "n": expected_n,
+    open_diagnostics = {}
+    if dataset == "textvqa":
+        open_diagnostics = {arm: {
+            "full_response_vs_short_answer_top_two_agreement": sum(
+                row["arms"][arm]["open_answer_diagnostic"]
+                ["full_response_top_two_agrees_with_answer_top_two"] for row in rows) / expected_n,
+            "mean_positive_students_matching_teacher_answer": sum(
+                row["arms"][arm]["open_answer_diagnostic"]
+                ["positive_students_matching_teacher_answer"] for row in rows) / expected_n,
+        } for arm in ARMS if arm != "greedy"}
+    return {"status": "scored_after_complete_four_arm_audit", "dataset": dataset,
+            "n": expected_n,
             "run_git_sha": manifest["git_sha"], "input_sha256": manifest["input_sha256"],
             "labels_sha256": sha256_file(labels), "results": results,
             "cost": _cost(rows, run / "response_trace"),
             "rule_writes": sum(len(row["written_rules"]) for row in rows),
             "rule_retrieval_coverage": sum(any(row["retrieved_rules"].values()) for row in rows),
             "distinct_tutor_variants": dict(Counter(len(set(row["variants"])) for row in rows)),
+            "open_task_diagnostics": open_diagnostics,
             "by_subject_exploratory": by_subject,
-            "interpretation": "One ScienceQA train development stream and one ordering seed; subject slices are exploratory, not confirmatory."}
+            "interpretation": f"One {dataset} train development stream and one ordering seed; slices are exploratory, not confirmatory."}
 
 
 def main() -> None:

@@ -10,10 +10,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from core.multimodal.schema import GenerationResponse
-from core.multimodal.tf_ttcl_direct_runner import (ARMS, VERSION,
+from core.multimodal.tf_ttcl_direct_runner import (ARMS, OPEN_VERSION, VERSION,
                                                     has_reasoning_before_final,
                                                     split_question_clause)
-from core.multimodal.tf_ttcl_direct_selection import ScoredCandidate, select_closed
+from core.multimodal.tf_ttcl_direct_selection import ScoredCandidate, select_closed, select_open
 from scripts.inspect_baseline_io import read_rows, require_label_free
 from scripts.create_label_isolated_subset import sha256_file
 
@@ -22,8 +22,11 @@ def audit(output: Path, inference: Path, count: int) -> tuple[dict, list[dict]]:
     manifest = json.loads((output / "manifest.json").read_text())
     rows = read_rows(output / "predictions.jsonl")
     inputs = read_rows(inference)
-    if (manifest.get("version"), manifest.get("status"), manifest.get("processed")) != (
-            VERSION, "completed", count):
+    dataset = manifest.get("dataset")
+    expected_version = OPEN_VERSION if dataset == "textvqa" else VERSION
+    if dataset not in {"scienceqa_img", "textvqa"} or (
+            manifest.get("version"), manifest.get("status"), manifest.get("processed")) != (
+            expected_version, "completed", count):
         raise ValueError("Run is not complete")
     if manifest.get("labels_read") is not False or manifest.get("input_sha256") != sha256_file(inference):
         raise ValueError("Label-free input manifest mismatch")
@@ -59,10 +62,16 @@ def audit(output: Path, inference: Path, count: int) -> tuple[dict, list[dict]]:
                 reasoning_outputs += has_reasoning_before_final(call["response"]["content"])
                 expected_images = source.get("image_paths", source.get("image_path", source.get("image")))
                 expected_images = expected_images if isinstance(expected_images, list) else [expected_images]
-                if (call["image_hashes"] != row["image_hashes"]
-                        or call["image_paths"] != expected_images
-                        or not call["sampling"]["request_logprobs"]):
-                    raise ValueError(f"Row {index} {name}: wrong image or missing PPL request")
+                expected_images = [str((inference.parent / path).resolve())
+                                   if not Path(path).is_absolute() else str(Path(path).resolve())
+                                   for path in expected_images]
+                if call["image_hashes"] != row["image_hashes"]:
+                    raise ValueError(f"Row {index} {name}: wrong image hash")
+                if [str(Path(path).resolve()) for path in call["image_paths"]] != expected_images:
+                    raise ValueError(f"Row {index} {name}: wrong image path "
+                                     f"{call['image_paths']!r} != {expected_images!r}")
+                if not call["sampling"]["request_logprobs"]:
+                    raise ValueError(f"Row {index} {name}: missing PPL request")
                 response = GenerationResponse(**call["response"])
                 candidate = ScoredCandidate.from_response(call["role"], call["normalized_answer"], response)
                 if not math.isclose(candidate.ppl, call["ppl"], rel_tol=1e-9):
@@ -73,11 +82,33 @@ def audit(output: Path, inference: Path, count: int) -> tuple[dict, list[dict]]:
             if name != "greedy":
                 candidates = [ScoredCandidate.from_response(call["role"], call["normalized_answer"],
                               GenerationResponse(**call["response"])) for call in answering]
-                selected = select_closed(candidates)
+                if dataset == "scienceqa_img":
+                    selected = select_closed(candidates)
+                else:
+                    ranked = arm.get("similarity_ranking", [])
+                    if (len(ranked) != 4 or {item[0] for item in ranked} !=
+                            {"student_1", "student_2", "student_3", "student_4"}):
+                        raise ValueError(f"Row {index} {name}: incomplete open-task similarity ranking")
+                    by_role = {role: score for role, score in ranked}
+                    selected = select_open(candidates,
+                                           [by_role[f"student_{number}"] for number in range(1, 5)])
                 if (arm["positive_role"], arm["negative_role"], arm["reason"]) != (
                         selected.positive.role,
                         selected.negative.role if selected.negative else None, selected.reason):
                     raise ValueError(f"Row {index} {name}: selection mismatch")
+                if dataset == "textvqa" and tuple(tuple(x) for x in ranked) != selected.similarity_ranking:
+                    raise ValueError(f"Row {index} {name}: similarity ranking mismatch")
+                if dataset == "textvqa":
+                    diagnostic = arm.get("open_answer_diagnostic")
+                    student_answers = {call["role"]: call["normalized_answer"]
+                                       for call in answering[1:]}
+                    if (not isinstance(diagnostic, dict)
+                            or diagnostic.get("teacher_answer") != answering[0]["normalized_answer"]
+                            or diagnostic.get("student_answers") != student_answers
+                            or set(diagnostic.get("answer_similarity", {})) != set(student_answers)
+                            or any(not math.isfinite(score) for score in
+                                   diagnostic["answer_similarity"].values())):
+                        raise ValueError(f"Row {index} {name}: malformed short-answer diagnostic")
             usage = arm["usage"]
             if usage["completion_tokens"] != sum(call["response"]["completion_tokens"] for call in calls):
                 raise ValueError(f"Row {index} {name}: token accounting mismatch")

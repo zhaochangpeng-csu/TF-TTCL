@@ -26,6 +26,7 @@ from .tf_ttcl_text_embedding import cosine
 
 
 VERSION = "tf_ttcl_mm_direct_v2"
+OPEN_VERSION = "tf_ttcl_mm_direct_textvqa_open_v1"
 ARMS = ("greedy", "vote_no_rewrite", "select_no_memory", "tf_ttcl_mm_direct")
 TEACHER_SYSTEM = ("You are a careful visual question answering teacher. First write two short "
                   "sentences explaining the evidence and inference; say if the image is not "
@@ -35,6 +36,15 @@ STUDENT_SYSTEM = ("You are a visual question answering student. Independently wr
                   "sentences explaining the evidence and inference; say if the image is not "
                   "needed. Never output just an option letter. Use exactly these two sections:\n"
                   "Reasoning: <two short sentences>\nFinal answer: <one option letter>.")
+TEACHER_SYSTEM_OPEN = ("You are a careful visual question answering teacher. Read the image "
+                       "and answer the question. First write two short sentences explaining "
+                       "the visible evidence and inference. Use exactly these two sections:\n"
+                       "Reasoning: <two short sentences>\nFinal answer: <short answer text>.")
+STUDENT_SYSTEM_OPEN = ("You are a visual question answering student. Independently read the "
+                       "image and answer the question. First write two short sentences "
+                       "explaining the visible evidence and inference. Use exactly these two "
+                       "sections:\nReasoning: <two short sentences>\n"
+                       "Final answer: <short answer text>.")
 TUTOR_SYSTEM = ("Rewrite only the question text into four semantically equivalent phrasings. "
                 "Preserve entities, numbers, negation, comparisons, image references, and the "
                 "question target. Do not answer, add facts, or describe any image. Return JSON "
@@ -46,6 +56,9 @@ RULE_HEADER = ("<BEGIN_RULES>\nLEARNED RULES (from previous problem-solving expe
 _PROMPT_ROOT = Path(__file__).resolve().parents[1] / "source/prompts/close/rule"
 POSITIVE_TEMPLATE = (_PROMPT_ROOT / "positive/single_extract.md").read_text(encoding="utf-8")
 NEGATIVE_TEMPLATE = (_PROMPT_ROOT / "negative/single_extract.md").read_text(encoding="utf-8")
+_OPEN_PROMPT_ROOT = Path(__file__).resolve().parents[1] / "source/prompts/open/rule"
+POSITIVE_TEMPLATE_OPEN = (_OPEN_PROMPT_ROOT / "positive/single_extract.md").read_text(encoding="utf-8")
+NEGATIVE_TEMPLATE_OPEN = (_OPEN_PROMPT_ROOT / "negative/single_extract.md").read_text(encoding="utf-8")
 
 
 def _digest(value: Any) -> str:
@@ -141,9 +154,14 @@ class DirectRunner:
         self.seed = seed
         self.rules: list[TextRule] = []
         self.git_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
-        self.prompt_sha = _digest([TEACHER_SYSTEM, STUDENT_SYSTEM, TUTOR_SYSTEM,
-                                   RULE_HEADER, POSITIVE_TEMPLATE, NEGATIVE_TEMPLATE])
-        self.config = {"version": VERSION, "dataset": samples[0].dataset,
+        self.teacher_system = TEACHER_SYSTEM_OPEN if samples[0].dataset == "textvqa" else TEACHER_SYSTEM
+        self.student_system = STUDENT_SYSTEM_OPEN if samples[0].dataset == "textvqa" else STUDENT_SYSTEM
+        self.positive_template = POSITIVE_TEMPLATE_OPEN if samples[0].dataset == "textvqa" else POSITIVE_TEMPLATE
+        self.negative_template = NEGATIVE_TEMPLATE_OPEN if samples[0].dataset == "textvqa" else NEGATIVE_TEMPLATE
+        self.version = OPEN_VERSION if samples[0].dataset == "textvqa" else VERSION
+        self.prompt_sha = _digest([self.teacher_system, self.student_system, TUTOR_SYSTEM,
+                                   RULE_HEADER, self.positive_template, self.negative_template])
+        self.config = {"version": self.version, "dataset": samples[0].dataset,
                        "input_sha256": input_sha256,
                        "ordered_ids": [sample.sample_id for sample in samples],
                        "model": backend.model_name, "model_revision": model_revision,
@@ -226,6 +244,24 @@ class DirectRunner:
             return select_open(candidates, similarities)
         raise ValueError(f"Unsupported direct-transfer dataset: {dataset}")
 
+    def _open_answer_diagnostic(self, candidates: list[ScoredCandidate], selection) -> dict | None:
+        if self.samples[0].dataset != "textvqa":
+            return None
+        teacher_vector = self.embedder.encode(candidates[0].answer)
+        answer_similarity = {candidate.role: cosine(
+            teacher_vector, self.embedder.encode(candidate.answer))
+            for candidate in candidates[1:]}
+        top_roles = set(selection.positive_roles[1:])
+        short_answer_top = {role for role, _ in sorted(
+            answer_similarity.items(), key=lambda item: (-item[1], item[0]))[:2]}
+        return {"teacher_answer": candidates[0].answer,
+                "student_answers": {candidate.role: candidate.answer for candidate in candidates[1:]},
+                "answer_similarity": answer_similarity,
+                "full_response_top_two_agrees_with_answer_top_two": top_roles == short_answer_top,
+                "positive_students_matching_teacher_answer": sum(
+                    candidate.role in top_roles and candidate.answer == candidates[0].answer
+                    for candidate in candidates[1:])}
+
     @staticmethod
     def _selection_record(selection) -> dict[str, Any]:
         return {"answer": "" if selection.positive.answer.startswith("__unparsed_")
@@ -248,12 +284,19 @@ class DirectRunner:
         if not selection.summarize_positive:
             return [], []
         question = format_question(sample.question, sample.choices, sample.metadata)
-        prompts = [("positive", POSITIVE_TEMPLATE.format(question=question,
+        prompts = [("positive", self.positive_template.format(question=question,
                    answer=selection.positive.response.content))]
         if selection.summarize_negative and selection.negative is not None:
-            prompts.append(("negative", NEGATIVE_TEMPLATE.format(
-                question=question, positive_answer=selection.positive.response.content,
-                negative_answer=selection.negative.response.content)))
+            positive_answer = selection.positive.response.content
+            negative_answer = selection.negative.response.content
+            if sample.dataset == "textvqa":
+                prompts.append(("negative", self.negative_template.format(
+                    question=question, correct_answer=positive_answer,
+                    incorrect_answer=negative_answer)))
+            else:
+                prompts.append(("negative", self.negative_template.format(
+                    question=question, positive_answer=positive_answer,
+                    negative_answer=negative_answer)))
         written: list[TextRule] = []
         calls: list[dict] = []
         for ordinal, (kind, prompt) in enumerate(prompts):
@@ -276,12 +319,12 @@ class DirectRunner:
             "positive": [], "negative": []}
         rule_text = _rule_prompt(retrieved)
         teacher, teacher_call = self._candidate("teacher", sample, sample.question,
-                                                TEACHER_SYSTEM, 0, index, False)
+                                                self.teacher_system, 0, index, False)
         vote = [teacher]
         vote_calls = [teacher_call]
         for number in range(1, 5):
             candidate, call = self._candidate(f"student_{number}", sample, sample.question,
-                                               STUDENT_SYSTEM, number + 1, index, True)
+                                               self.student_system, number + 1, index, True)
             vote.append(candidate)
             vote_calls.append(call)
         vote_selection = self._select(vote, sample.dataset)
@@ -295,20 +338,20 @@ class DirectRunner:
         nomem_calls = [teacher_call, tutor_call]
         for number, variant in enumerate(variants, 1):
             candidate, call = self._candidate(f"student_{number}", sample, variant,
-                                               STUDENT_SYSTEM, number + 1, index, True)
+                                               self.student_system, number + 1, index, True)
             nomem.append(candidate)
             nomem_calls.append(call)
         nomem_selection = self._select(nomem, sample.dataset)
         if rule_text:
             full_teacher, full_teacher_call = self._candidate(
-                "teacher", sample, sample.question, TEACHER_SYSTEM + "\n" + rule_text,
+                "teacher", sample, sample.question, self.teacher_system + "\n" + rule_text,
                 0, index, False)
         else:
             full_teacher, full_teacher_call = teacher, teacher_call
         full = [full_teacher]
         full_calls = [full_teacher_call, tutor_call]
         for number, variant in enumerate(variants, 1):
-            system = STUDENT_SYSTEM + ("\n" + rule_text if rule_text else "")
+            system = self.student_system + ("\n" + rule_text if rule_text else "")
             candidate, call = self._candidate(f"student_{number}", sample, variant,
                                                system, number + 1, index, True)
             full.append(candidate)
@@ -327,10 +370,13 @@ class DirectRunner:
                     "greedy": {"answer": greedy_answer, "calls": [teacher_call],
                                "usage": self._usage([teacher_call])},
                     "vote_no_rewrite": {**self._selection_record(vote_selection),
+                                         "open_answer_diagnostic": self._open_answer_diagnostic(vote, vote_selection),
                                          "calls": vote_calls, "usage": self._usage(vote_calls)},
                     "select_no_memory": {**self._selection_record(nomem_selection),
+                                          "open_answer_diagnostic": self._open_answer_diagnostic(nomem, nomem_selection),
                                           "calls": nomem_calls, "usage": self._usage(nomem_calls)},
                     "tf_ttcl_mm_direct": {**self._selection_record(full_selection),
+                                           "open_answer_diagnostic": self._open_answer_diagnostic(full, full_selection),
                                            "calls": full_calls, "usage": self._usage(full_calls)}},
                 "written_rules": [asdict(rule) for rule in written], "labels_read": False}
 
