@@ -55,6 +55,20 @@ class TextVQATrainDirectTests(unittest.TestCase):
                 prepare(annotation, image_zip, root / "output", count=1,
                         expected_count=1, expected_images=1, previous_val=previous.parent)
 
+    def test_imports_verified_selected_image_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            annotation = root / "train.json"
+            annotation.write_text(json.dumps({"data": [{"question_id": 1, "image_id": "one",
+                "set_name": "train", "question": "What is visible?", "answers": ["blue"] * 10}]}))
+            images = root / "source_images"
+            images.mkdir()
+            Image.new("RGB", (2, 2), "blue").save(images / "one.jpg")
+            manifest = prepare(annotation, None, root / "export", image_dir_source=images,
+                               count=1, expected_count=1, expected_images=1)
+            self.assertEqual(manifest["image_archive_source"], "official ZIP HTTP range")
+            self.assertTrue((root / "export" / "images" / "one.jpg").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()

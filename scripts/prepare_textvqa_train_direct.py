@@ -20,11 +20,8 @@ from PIL import Image
 from scripts.create_label_isolated_subset import sha256_file
 
 
-def prepare(annotation: Path, image_zip: Path, output: Path, *, count: int = 400,
-            seed: int = 20261020, expected_count: int = 34602,
-            expected_images: int = 21953, previous_val: Path | None = None) -> dict:
-    if output.exists():
-        raise FileExistsError(f"Refusing to overwrite existing export: {output}")
+def select_train_rows(annotation: Path, count: int = 400, seed: int = 20261020,
+                      expected_count: int = 34602, expected_images: int = 21953) -> list[dict]:
     payload = json.loads(annotation.read_text(encoding="utf-8"))
     rows = payload.get("data")
     if not isinstance(rows, list) or len(rows) != expected_count:
@@ -49,6 +46,17 @@ def prepare(annotation: Path, image_zip: Path, output: Path, *, count: int = 400
         raise ValueError("Development count must be within the official train split")
     selected = sorted(rows, key=lambda row: hashlib.sha256(
         f"{seed}:{row['question_id']}".encode()).hexdigest())[:count]
+    return selected
+
+
+def prepare(annotation: Path, image_zip: Path | None, output: Path, *, image_dir_source: Path | None = None,
+            count: int = 400, seed: int = 20261020, expected_count: int = 34602,
+            expected_images: int = 21953, previous_val: Path | None = None) -> dict:
+    if (image_zip is None) == (image_dir_source is None):
+        raise ValueError("Supply exactly one official ZIP or verified image directory")
+    if output.exists():
+        raise FileExistsError(f"Refusing to overwrite existing export: {output}")
+    selected = select_train_rows(annotation, count, seed, expected_count, expected_images)
     image_ids = {row["image_id"] for row in selected}
     if previous_val is not None:
         if not (previous_val / "images").is_dir():
@@ -62,24 +70,33 @@ def prepare(annotation: Path, image_zip: Path, output: Path, *, count: int = 400
         staged = Path(temporary) / "export"
         image_dir = staged / "images"
         image_dir.mkdir(parents=True)
-        with zipfile.ZipFile(image_zip) as archive:
-            by_id: dict[str, zipfile.ZipInfo] = {}
-            for info in archive.infolist():
-                path = Path(info.filename)
-                if (not info.is_dir() and path.parent.name == "train_images"
-                        and path.suffix.lower() == ".jpg" and path.stem in image_ids):
-                    if path.stem in by_id:
-                        raise ValueError(f"Duplicate selected image: {path.stem}")
-                    by_id[path.stem] = info
-            missing = image_ids - by_id.keys()
-            if missing:
-                raise FileNotFoundError(f"Missing {len(missing)} selected images; first: {sorted(missing)[0]}")
+        if image_zip is not None:
+            with zipfile.ZipFile(image_zip) as archive:
+                by_id: dict[str, zipfile.ZipInfo] = {}
+                for info in archive.infolist():
+                    path = Path(info.filename)
+                    if (not info.is_dir() and path.parent.name == "train_images"
+                            and path.suffix.lower() == ".jpg" and path.stem in image_ids):
+                        if path.stem in by_id:
+                            raise ValueError(f"Duplicate selected image: {path.stem}")
+                        by_id[path.stem] = info
+                missing = image_ids - by_id.keys()
+                if missing:
+                    raise FileNotFoundError(f"Missing {len(missing)} selected images; first: {sorted(missing)[0]}")
+                for image_id in sorted(image_ids):
+                    target = image_dir / f"{image_id}.jpg"
+                    with archive.open(by_id[image_id]) as source, target.open("xb") as sink:
+                        shutil.copyfileobj(source, sink)
+                    with Image.open(target) as image:
+                        image.verify()
+        else:
             for image_id in sorted(image_ids):
-                target = image_dir / f"{image_id}.jpg"
-                with archive.open(by_id[image_id]) as source, target.open("xb") as sink:
-                    shutil.copyfileobj(source, sink)
-                with Image.open(target) as image:
+                source = image_dir_source / f"{image_id}.jpg"
+                if not source.is_file():
+                    raise FileNotFoundError(f"Missing selected image: {source}")
+                with Image.open(source) as image:
                     image.verify()
+                shutil.copyfile(source, image_dir / f"{image_id}.jpg")
 
         inference = staged / "inference.jsonl"
         labels = staged / "labels.jsonl"
@@ -96,7 +113,11 @@ def prepare(annotation: Path, image_zip: Path, output: Path, *, count: int = 400
                     "selected_ids": selected_ids,
                     "selected_ids_sha256": hashlib.sha256("\n".join(selected_ids).encode()).hexdigest(),
                     "annotation_sha256": sha256_file(annotation),
-                    "image_archive_sha256": sha256_file(image_zip),
+                    "image_archive_sha256": sha256_file(image_zip) if image_zip else None,
+                    "image_archive_source": None if image_zip else "official ZIP HTTP range",
+                    "selected_images_sha256": hashlib.sha256("\n".join(
+                        f"{image_id}:{sha256_file(image_dir / f'{image_id}.jpg')}"
+                        for image_id in sorted(image_ids)).encode()).hexdigest(),
                     "inference_sha256": sha256_file(inference),
                     "labels_sha256": sha256_file(labels),
                     "inference_path": str((output / "inference.jsonl").resolve()),
@@ -110,13 +131,16 @@ def prepare(annotation: Path, image_zip: Path, output: Path, *, count: int = 400
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--annotation", type=Path, required=True)
-    parser.add_argument("--image-zip", type=Path, required=True)
+    image_source = parser.add_mutually_exclusive_group(required=True)
+    image_source.add_argument("--image-zip", type=Path)
+    image_source.add_argument("--image-dir", type=Path)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--previous-val", type=Path)
     parser.add_argument("--count", type=int, default=400)
     parser.add_argument("--seed", type=int, default=20261020)
     args = parser.parse_args()
     print(json.dumps(prepare(args.annotation, args.image_zip, args.output_dir,
+                             image_dir_source=args.image_dir,
                              count=args.count, seed=args.seed, previous_val=args.previous_val), indent=2))
 
 

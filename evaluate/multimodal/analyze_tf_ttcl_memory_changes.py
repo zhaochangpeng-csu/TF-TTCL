@@ -22,9 +22,20 @@ def analyze(run: Path, inference: Path, labels: Path, count: int = 400) -> dict:
     if len(targets) != count or [item.sample.sample_id for item in targets] != manifest["ordered_ids"]:
         raise ValueError("Labels differ from the audited stream")
     cases = []
+    consensus = {arm: {"all_same": 0, "all_same_correct": 0}
+                 for arm in ("select_no_memory", "tf_ttcl_mm_direct")}
+    changed_teacher = 0
     for row, target in zip(rows, targets):
         plain = row["arms"]["select_no_memory"]
         memory = row["arms"]["tf_ttcl_mm_direct"]
+        changed_teacher += int(plain["calls"][0]["normalized_answer"] !=
+                               memory["calls"][0]["normalized_answer"])
+        for arm_name, arm in (("select_no_memory", plain), ("tf_ttcl_mm_direct", memory)):
+            answers = [call["normalized_answer"] for call in arm["calls"] if call.get("role")]
+            if len(set(answers)) == 1:
+                consensus[arm_name]["all_same"] += 1
+                consensus[arm_name]["all_same_correct"] += int(score_prediction(
+                    "scienceqa_img", arm["answer"], target.target.answers) == 1)
         if plain["answer"] == memory["answer"]:
             continue
         plain_score = score_prediction("scienceqa_img", plain["answer"], target.target.answers)
@@ -35,6 +46,8 @@ def analyze(run: Path, inference: Path, labels: Path, count: int = 400) -> dict:
                       "outcome": outcome, "question": row["original_question"],
                       "choices": row["choices"], "gold": list(target.target.answers),
                       "no_memory_answer": plain["answer"], "memory_answer": memory["answer"],
+                      "no_memory_teacher_answer": plain["calls"][0]["normalized_answer"],
+                      "memory_teacher_answer": memory["calls"][0]["normalized_answer"],
                       "no_memory_selection": plain["reason"],
                       "memory_selection": memory["reason"],
                       "no_memory_candidate_answers": [call["normalized_answer"]
@@ -48,6 +61,7 @@ def analyze(run: Path, inference: Path, labels: Path, count: int = 400) -> dict:
     outcomes = Counter(item["outcome"] for item in cases)
     return {"status": "posthoc_after_completed_audit", "run_git_sha": manifest["git_sha"],
             "count": count, "answer_changed_items": len(cases),
+            "all_same_consensus": consensus, "teacher_answer_changed_items": changed_teacher,
             "outcomes": dict(outcomes),
             "selection_reasons": {outcome: dict(Counter(
                 item["memory_selection"] for item in cases if item["outcome"] == outcome))
