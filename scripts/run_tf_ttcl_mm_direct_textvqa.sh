@@ -15,7 +15,7 @@ case "$run_kind" in
   dev400) count=400 ;;
   *) echo "TF_TTCL_MM_RUN_KIND must be smoke20 or dev400" >&2; exit 2 ;;
 esac
-if [[ ! "$gpu_index" =~ ^(0|2|3)$ ]]; then
+if [[ ! "$gpu_index" =~ ^(0|1|2|3)$ ]]; then
   echo "Unsupported GPU index: $gpu_index" >&2
   exit 2
 fi

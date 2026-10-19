@@ -53,7 +53,8 @@ label-free audit passes should
 Report VQA accuracy, paired score differences, actual token/time cost, and
 how often full-response and short-answer top-two partitions disagree.
 
-The GPU index defaults to user-authorized GPU 3. The launcher refuses an
+The GPU index defaults to GPU 3; `GPU_INDEX=1` (or another idle card) is
+allowed under the user's updated authorization. The launcher refuses an
 occupied GPU or already-running local service, owns and stops only its model
 process group, and leaves other GPU processes untouched.
 
