@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Extract an untouched, label-isolated TextVQA train stream for direct transfer.
 
-The official train annotation and train/validation image ZIP must be supplied
-locally. Only the deterministic development subset's images are extracted.
+Supply the official train annotation and either its image ZIP or verified
+selected images. Only the deterministic development subset is exported.
 """
 from __future__ import annotations
 
@@ -11,12 +11,14 @@ import hashlib
 import json
 import os
 import shutil
+import sys
 import tempfile
 import zipfile
 from pathlib import Path
 
 from PIL import Image
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.create_label_isolated_subset import sha256_file
 
 

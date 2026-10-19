@@ -12,6 +12,7 @@ import io
 import json
 import os
 import shutil
+import sys
 import threading
 import time
 import zipfile
@@ -24,6 +25,7 @@ from PIL import Image
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.create_label_isolated_subset import sha256_file
 from scripts.fetch_textvqa_val_images import _valid_image
 from scripts.prepare_textvqa_train_direct import select_train_rows
