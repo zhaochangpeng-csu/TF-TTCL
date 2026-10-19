@@ -10,6 +10,11 @@ inference="data/multimodal/scienceqa_modelscope_train/dev400_text_only.inference
 image_root="data/multimodal/scienceqa_modelscope_train"
 run_root="core/exp_res/mm/tf_ttcl_mm_direct/qwen25vl"
 port="${API_PORT:-9000}"
+gpu_index="${GPU_INDEX:-2}"
+if [[ ! "$gpu_index" =~ ^(0|2|3)$ ]]; then
+  echo "Unsupported GPU index: $gpu_index" >&2
+  exit 2
+fi
 if [[ "$(git status --porcelain)" != "" ]]; then
   echo "Probe requires a clean, committed server worktree." >&2
   exit 2
@@ -18,9 +23,9 @@ if [[ ! -f "$inference" || ! -d "$model_path" ]]; then
   echo "Missing isolated input or target model; no service started." >&2
   exit 2
 fi
-active_pids="$(nvidia-smi -i 2 --query-compute-apps=pid --format=csv,noheader,nounits | sed '/^[[:space:]]*$/d')"
+active_pids="$(nvidia-smi -i "$gpu_index" --query-compute-apps=pid --format=csv,noheader,nounits | sed '/^[[:space:]]*$/d')"
 if [[ -n "$active_pids" ]]; then
-  echo "GPU 2 occupied ($active_pids); no service started." >&2
+  echo "GPU $gpu_index occupied ($active_pids); no service started." >&2
   exit 2
 fi
 if curl --silent --fail "http://127.0.0.1:${port}/health" >/dev/null; then
@@ -38,7 +43,7 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-setsid env CUDA_VISIBLE_DEVICES=2 VLLM_USE_FLASHINFER_SAMPLER=0 \
+setsid env CUDA_VISIBLE_DEVICES="$gpu_index" VLLM_USE_FLASHINFER_SAMPLER=0 \
   "$vllm_bin" serve "$model_path" --served-model-name Qwen/Qwen2.5-VL-7B-Instruct \
   --host 127.0.0.1 --port "$port" --trust-remote-code \
   --gpu-memory-utilization 0.85 --max-model-len 8192 >>"$run_root/probe_vllm.log" 2>&1 &
