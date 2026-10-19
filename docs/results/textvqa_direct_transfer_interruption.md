@@ -30,8 +30,8 @@ audit may open the isolated targets for offline scoring.
 
 For this interrupted run, the recovery launcher is copied to a temporary
 server path and executed while the runner checkout remains at its recorded
-Git SHA `4d86753b313bd1b52286bd8a43cf53dc33f96830`. Do not update that
-checkout until completion. The launcher's own SHA-256 and the selected GPU
+Git SHA `4d86753b313bd1b52286bd8a43cf53dc33f96830`. That checkout was
+not updated until completion. The launcher's own SHA-256 and the selected GPU
 are printed in its log. It waits for an idle permitted GPU rather than
 interrupting another user's process, and cleans up only its owned vLLM
 service on exit.

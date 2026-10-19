@@ -10,6 +10,10 @@ PPL, then retrieve top-30 positive and top-30 negative text rules from earlier
 questions. No image augmentation, visual verification, memory gate, or final
 refinement was added.
 
+The metric is the project's deterministic TextVQA soft score; exact parity
+with the official EvalAI answer processor has not yet been verified. These
+figures are not leaderboard claims.
+
 The first service had an 8,192-token limit and stopped before sample 173. A
 32,768-token service was started; a memory-conditioned replay differed, so
 the old 173-row prefix was discarded for scoring and all 400 items were run
@@ -18,7 +22,7 @@ afresh. The new run passed the label-free audit (`processed=400`,
 for offline VQA accuracy. The run's code SHA was
 `4d86753b313bd1b52286bd8a43cf53dc33f96830`.
 
-| Arm | TextVQA accuracy | Change vs greedy | Logical prompt tokens |
+| Arm | Local TextVQA score | Change vs greedy | Logical prompt tokens |
 | --- | ---: | ---: | ---: |
 | Greedy | 72.50% | — | 434,043 |
 | Five candidates, no paraphrase | 72.53% | +0.03 pp | 2,171,815 |
