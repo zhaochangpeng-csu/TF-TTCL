@@ -5,13 +5,14 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from core.multimodal.schema import GenerationResponse
-from core.multimodal.tf_ttcl_direct_runner import ARMS, VERSION, split_question_clause
+from core.multimodal.tf_ttcl_direct_runner import (ARMS, VERSION,
+                                                    has_reasoning_before_final,
+                                                    split_question_clause)
 from core.multimodal.tf_ttcl_direct_selection import ScoredCandidate, select_closed
 from scripts.inspect_baseline_io import read_rows, require_label_free
 from scripts.create_label_isolated_subset import sha256_file
@@ -55,8 +56,7 @@ def audit(output: Path, inference: Path, count: int) -> tuple[dict, list[dict]]:
                 raise ValueError(f"Row {index} {name}: candidate count mismatch")
             for call in answering:
                 answering_outputs += 1
-                reasoning_outputs += bool(re.search(r"(?is)reasoning\s*:.{25,}?final answer\s*:",
-                                                   call["response"]["content"]))
+                reasoning_outputs += has_reasoning_before_final(call["response"]["content"])
                 expected_images = source.get("image_paths", source.get("image_path", source.get("image")))
                 expected_images = expected_images if isinstance(expected_images, list) else [expected_images]
                 if (call["image_hashes"] != row["image_hashes"]
@@ -82,7 +82,7 @@ def audit(output: Path, inference: Path, count: int) -> tuple[dict, list[dict]]:
             if usage["completion_tokens"] != sum(call["response"]["completion_tokens"] for call in calls):
                 raise ValueError(f"Row {index} {name}: token accounting mismatch")
     if count == 20 and reasoning_outputs / max(answering_outputs, 1) < 0.8:
-        raise ValueError("Smoke failed: fewer than 80% of answers contain a reasoning trajectory")
+        raise ValueError("Smoke failed: fewer than 80% of answers have reasoning before the final answer")
     return manifest, rows
 
 

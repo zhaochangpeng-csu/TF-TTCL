@@ -67,8 +67,17 @@ checks (300 physical model requests, 25 rule writes, GPU 3 released), but its
 I/O inspection failed the substantive reasoning-format gate: all 20 Teacher
 responses were answer-only, so a rule could be invented from a letter rather
 than distilled from contrasting reasoning. Five Tutor outputs were valid JSON
-arrays that the initial parser discarded. Version `v2` requires a short
-`Reasoning:` section before `Final answer:`, accepts either JSON object or
+arrays that the initial parser discarded. Version `v2` prompts for short
+reasoning before `Final answer:`, accepts either JSON object or
 array rewrites, and passes only the question clause to Tutor while restoring
 the original ScienceQA context verbatim. This change was made without opening
 labels; the original smoke remains a diagnostic artifact and is not scored.
+
+The v2 20-item smoke produced four distinct restored-context variants for all
+20 items. An initial automated audit incorrectly required the literal prefix
+`Reasoning:` even though many outputs included substantive prose before
+`Final answer:` without that heading. The corrected format check counts at
+least eight words and 25 characters before the final-answer marker. On the
+unscored v2 stream this is 273/320 logical answering outputs (85.3%); the
+remaining answer-only outputs remain visible in the casebook. No labels were
+opened to make or verify this change.

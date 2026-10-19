@@ -81,6 +81,15 @@ def parse_variants(text: str, question: str) -> list[str]:
     return (variants + [question] * 4)[:4]
 
 
+def has_reasoning_before_final(text: str) -> bool:
+    """Do not require a literal heading; require actual prose before the answer."""
+    marker = re.search(r"(?i)final answer\s*:", text)
+    if not marker:
+        return False
+    prefix = text[:marker.start()].strip()
+    return len(prefix) >= 25 and len(prefix.split()) >= 8
+
+
 @dataclass(frozen=True)
 class TextRule:
     rule_id: str

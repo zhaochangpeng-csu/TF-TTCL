@@ -4,7 +4,8 @@ import unittest
 from pathlib import Path
 
 from core.multimodal.schema import GenerationResponse, MultimodalSample
-from core.multimodal.tf_ttcl_direct_runner import DirectRunner, parse_variants, split_question_clause
+from core.multimodal.tf_ttcl_direct_runner import (DirectRunner, has_reasoning_before_final,
+                                                    parse_variants, split_question_clause)
 from core.multimodal.tf_ttcl_text_embedding import cosine
 from scripts.create_label_isolated_subset import create_subset
 
@@ -30,6 +31,12 @@ class FakeBackend:
 
 
 class DirectRunnerTests(unittest.TestCase):
+    def test_reasoning_format_accepts_prose_without_heading(self):
+        self.assertTrue(has_reasoning_before_final(
+            "The image shows a red object beside two blue ones. Counting red objects gives one.\nFinal answer: A"))
+        self.assertFalse(has_reasoning_before_final("Final answer: A"))
+        self.assertFalse(has_reasoning_before_final("Final answer: A\nReasoning: too late"))
+
     def test_variants_keep_numbers_and_fallback(self):
         variants = parse_variants('{"questions":["Which 3?","Which 4?","How many 3?"]}',
                                   "How many 3?")
