@@ -35,3 +35,16 @@ checkout until completion. The launcher's own SHA-256 and the selected GPU
 are printed in its log. It waits for an idle permitted GPU rather than
 interrupting another user's process, and cleans up only its owned vLLM
 service on exit.
+
+## Resolution
+
+The 32,768-token service started on idle GPU 1. The first greedy replay
+matched, but the memory-conditioned student replay at index 0 differed. As
+specified above, the launcher **did not resume or score the 173-row prefix**.
+It started a fresh 400-row run in
+`core/exp_res/mm/tf_ttcl_mm_direct/qwen25vl/textvqa_dev400_ctx32768_seed0/`.
+That run completed, passed the label-free audit, and was then scored offline.
+Its aggregate results are in
+[the complete TextVQA report](tf_ttcl_mm_direct_textvqa_train400.md).
+The owned model process exited and GPU 1 returned to idle. The original
+interrupted output remains untouched for provenance.
