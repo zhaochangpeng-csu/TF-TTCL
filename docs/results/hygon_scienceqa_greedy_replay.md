@@ -13,6 +13,9 @@ isolated hardware precision experiment.
 
 The final answer agreed on 389/400 questions (97.25%). Of the 11 changed
 answers, six improved, two worsened, and three had the same correctness.
+Prompt token counts agreed on all 400 items; generated completion token counts
+agreed on 248/400, so matching final choices does not imply identical reasoning
+text or generation traces.
 The paired accuracy difference was +1.00 percentage point (95% bootstrap CI
 [−0.25, +2.50] pp; two-sided paired randomization p=0.2891). The interval
 does not establish that the two stacks are equivalent; one 400-item stream,
