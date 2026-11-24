@@ -109,6 +109,8 @@ def main() -> None:
     p.add_argument('--model', type=Path, required=True)
     p.add_argument('--weight-manifest', type=Path, required=True)
     p.add_argument('--smoke-predictions', type=Path, required=True)
+    p.add_argument('--smoke-reference', type=Path,
+                   help='Reference for smoke gate if different from current dataset')
     p.add_argument('--inference', type=Path, required=True)
     p.add_argument('--reference', type=Path, required=True)
     p.add_argument('--output', type=Path, required=True)
@@ -120,6 +122,7 @@ def main() -> None:
     p.add_argument('--ready-timeout', type=int, default=1200)
     p.add_argument('--python', default=sys.executable)
     p.add_argument('--vllm', default='vllm')
+    p.add_argument('--worker-script', default='scripts/hygon_scienceqa_greedy.py')
     a = p.parse_args()
     a.project, a.model = a.project.resolve(), a.model.resolve()
     a.inference, a.reference = a.inference.resolve(), a.reference.resolve()
@@ -135,12 +138,15 @@ def main() -> None:
     if (gate.get('smoke_passed') is not True or
             gate.get('smoke_sha256') != digest(a.smoke_predictions)):
         raise ValueError('Weight gate must bind a passed smoke prediction hash')
-    verify_smoke(a.smoke_predictions, a.reference)
+    verify_smoke(a.smoke_predictions, a.smoke_reference or a.reference)
     verify_weights(a.model, a.weight_manifest)
     for port in range(a.base_port, a.base_port + 8):
         free_port(port)
     os.chdir(a.project)
-    worker_script = str(a.project / 'scripts/hygon_scienceqa_greedy.py')
+    worker_path = (a.project / a.worker_script).resolve()
+    if not worker_path.is_relative_to(a.project) or not worker_path.is_file():
+        raise ValueError('Worker script must be a project file')
+    worker_script = str(worker_path)
     common = [a.python, worker_script, '--inference', str(a.inference),
               '--reference', str(a.reference), '--count', str(a.count), '--workers', '8']
     for index in range(8):
@@ -164,6 +170,8 @@ def main() -> None:
                               for name in ('torch', 'vllm', 'transformers')},
         'model_revision': 'cc594898137f460bfe9f0759e9844b3ce807cfb5',
         'seed': 0,
+        'worker_script': str(worker_path.relative_to(a.project)),
+        'worker_sha256': digest(worker_path),
     }, indent=2) + '\n')
     services: list[subprocess.Popen] = []
     workers: list[subprocess.Popen] = []
