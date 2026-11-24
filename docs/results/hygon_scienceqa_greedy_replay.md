@@ -47,6 +47,11 @@ generation PPL, followed by an online-memory stream. The latter depends on
 all previous questions and cannot be split into eight independent streams and
 reported as the same online experiment.
 
+An additional label-free sampled student probe on the first 20 original
+questions returned complete finite token logprobs and had 18/20 final-answer
+matches with NVIDIA. The same random seed does not guarantee matching samples
+across inference stacks; this is a compatibility check, not an accuracy result.
+
 Server output: `/data/cp-experiments/tf-ttcl-hygon-20261124/results/dev400_8gpu/`.
 Input SHA-256: `01c6dc83958ea1cee51ab38594b2499e3bfbc4034139674dc799e5dfeb354689`;
 reference predictions SHA-256: `b8ac87c5bdf38923f7ec5e9e848b3f1b18e0f183b2ea0deffea98700ffaf4d71`.
