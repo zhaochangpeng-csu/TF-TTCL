@@ -32,6 +32,13 @@ section labels and two reasoning sentences even when learned rules are present.
 The original policy and the audit threshold remain unchanged. V1 outputs remain
 preserved separately and no smoke correctness was inspected.
 
+The v2 20-item smoke completed and passed both label-free stream audits. The
+reasoning-before-final check passed 310/320 arm-recorded answering calls in
+the original policy and 298/320 in the short-final policy. In the memory arm,
+the corresponding counts were 90/100 and 85/100. These call counts include
+requests reused across arms and are not independent observations. The checks
+measure format compliance, not accuracy; no smoke labels were scored.
+
 Each stream contains an original candidate-selection arm without memory and
 a full online memory arm. The four predeclared factorial cells are therefore
 original/no-memory, original/memory, short-final/no-memory, and
