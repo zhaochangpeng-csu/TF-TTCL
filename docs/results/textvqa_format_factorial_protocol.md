@@ -15,6 +15,11 @@ original candidate generation, open-domain full-response similarity, PPL
 selection, and online rule-writing algorithms. Each stream has its own memory;
 the current sample may only retrieve rules written by earlier samples.
 
+Frozen prompt hashes are `8b48f2132cfe999b2610f2b68424f54c39c3a4ffe4208838ba81a7babfca5193`
+for `original` and `6e48938a0cfca4d959d65bb4c476f0a5d43b930c8b50e903ac070bd9ee1268d3`
+for `short_final`. The hashes cover the Teacher, Student, Tutor, rule header,
+and positive/negative rule templates in the project's canonical JSON digest.
+
 Each stream contains an original candidate-selection arm without memory and
 a full online memory arm. The four predeclared factorial cells are therefore
 original/no-memory, original/memory, short-final/no-memory, and
