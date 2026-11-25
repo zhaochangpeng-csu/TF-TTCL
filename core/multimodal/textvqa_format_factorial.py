@@ -17,12 +17,16 @@ from .tf_ttcl_direct_runner import DirectRunner, RULE_HEADER, TUTOR_SYSTEM, _dig
 
 POLICIES = ('original', 'short_final')
 SHORT_FINAL_SUFFIX = (
-    '\nOn the Final answer line, provide only the answer required by the question. '
+    '\nFor every response, use exactly these two labeled sections, even when learned '
+    'rules are present:\nReasoning: <two short sentences explaining visible evidence '
+    'and inference>\nFinal answer: <answer required by the question>\n'
+    'Do not omit either section or either exact label. On the Final answer line, '
+    'provide only the answer required by the question. '
     'Do not repeat the question or include an explanation in the answer. '
     'Preserve all words, digits, and symbols needed for the answer; '
-    'do not impose a fixed word limit. Keep the Reasoning section before the final line.'
+    'do not impose a fixed word limit.'
 )
-FACTORIAL_VERSION = 'textvqa_format_factorial_v1'
+FACTORIAL_VERSION = 'textvqa_format_factorial_v2'
 
 
 class TextVQAFormatRunner(DirectRunner):

@@ -56,6 +56,10 @@ class FormatFactorialTests(unittest.TestCase):
                                      'source', 'model', 'embedding')
         base, short = runs['original'], runs['short_final']
         self.assertNotEqual(base.prompt_sha, short.prompt_sha)
+        self.assertEqual(short.prompt_sha, '88eee4c8df7faa061cb04e3b161c896db20bccfbc0f97a03ee60680c803e0b54')
+        self.assertIn('Reasoning: <two short sentences', SHORT_FINAL_SUFFIX)
+        self.assertIn('Final answer: <answer required', SHORT_FINAL_SUFFIX)
+        self.assertIn('even when learned rules are present', SHORT_FINAL_SUFFIX.replace('\n', ' '))
         self.assertEqual(short.teacher_system, base.teacher_system + SHORT_FINAL_SUFFIX)
         self.assertEqual(short.student_system, base.student_system + SHORT_FINAL_SUFFIX)
         self.assertEqual(base.positive_template, short.positive_template)

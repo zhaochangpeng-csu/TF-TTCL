@@ -16,9 +16,21 @@ selection, and online rule-writing algorithms. Each stream has its own memory;
 the current sample may only retrieve rules written by earlier samples.
 
 Frozen prompt hashes are `8b48f2132cfe999b2610f2b68424f54c39c3a4ffe4208838ba81a7babfca5193`
-for `original` and `6e48938a0cfca4d959d65bb4c476f0a5d43b930c8b50e903ac070bd9ee1268d3`
+for `original` and `88eee4c8df7faa061cb04e3b161c896db20bccfbc0f97a03ee60680c803e0b54`
 for `short_final`. The hashes cover the Teacher, Student, Tutor, rule header,
 and positive/negative rule templates in the project's canonical JSON digest.
+
+This is protocol v2, frozen before labels were used for scoring or prompt choice.
+Dataset preparation had previously read the annotations to isolate labels;
+neither inference nor smoke inspection reads them. In the v1 unlabeled
+20-item smoke, only 245/320 short-policy answering calls passed the required
+reasoning-before-final check (versus 310/320 for original); in the short-policy
+memory arm, 38/100 calls lacked a `Final answer:` marker. The formal run was
+stopped. Some historical rules could conflict with the requested format, but
+this has not been established as the cause. V2 explicitly requires both exact
+section labels and two reasoning sentences even when learned rules are present.
+The original policy and the audit threshold remain unchanged. V1 outputs remain
+preserved separately and no smoke correctness was inspected.
 
 Each stream contains an original candidate-selection arm without memory and
 a full online memory arm. The four predeclared factorial cells are therefore
