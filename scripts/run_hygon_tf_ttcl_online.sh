@@ -52,6 +52,9 @@ for _ in $(seq 1 600); do
 done
 if [[ "$ready" != 1 ]]; then echo 'vLLM readiness timeout' >&2; exit 4; fi
 python scripts/run_hygon_tf_ttcl_direct.py "${args[@]}"
+# The remaining audit and scoring are CPU-only; release the owned HCU service.
+cleanup
+service_pid=''
 if [[ ! -e "$out/unscored_casebook.md" ]]; then
   python scripts/audit_hygon_tf_ttcl_direct.py --output "$out" --inference "$inference" \
     --reference "$reference" --count "$count" --casebook "$out/unscored_casebook.md"
