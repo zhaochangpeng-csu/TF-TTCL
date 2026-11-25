@@ -24,6 +24,7 @@ SEED = 20261126
 COUNT = 400
 ANNOTATION_SHA = '95f5c407db56cba56a177799dcd685a7cc0ec7c0d851b59910acf7786d31b68a'
 PREVIOUS_TRAIN_SHA = 'e7b3865aa534594634ab9f9c136344d1c2673f317a2578722f09677cc8189b74'
+PREVIOUS_VAL_SHA = '10b8f9464bc9190a929650e83594b5f0f6a237598e9d9eff47f97f52eb25d978'
 
 
 def read_jsonl(path: Path) -> list[dict]:
@@ -38,8 +39,9 @@ def select(annotation: Path, old_train: Path, old_val: Path, *, count: int = COU
            expected_train: int = 34602, expected_previous: int = 400,
            expected_val: int = 5000, validate_hashes: bool = True) -> dict:
     if validate_hashes and (sha256_file(annotation) != ANNOTATION_SHA or
-                            sha256_file(old_train) != PREVIOUS_TRAIN_SHA):
-        raise ValueError('Official annotation or prior train stream SHA mismatch')
+                            sha256_file(old_train) != PREVIOUS_TRAIN_SHA or
+                            sha256_file(old_val) != PREVIOUS_VAL_SHA):
+        raise ValueError('Official annotation or prior train/validation stream SHA mismatch')
     previous, validation = read_jsonl(old_train), read_jsonl(old_val)
     if len(previous) != expected_previous or len(validation) != expected_val:
         raise ValueError('Previous train/validation stream is incomplete')
