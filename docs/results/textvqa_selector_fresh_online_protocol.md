@@ -46,3 +46,7 @@ Both 20-item smoke streams completed on 2026-11-26 and passed the independent
 label-free selector, history and response audits; no smoke accuracy was read.
 The model services were stopped before the CPU audits. The unscored audit
 summaries are recorded in [the smoke audit](textvqa_selector_fresh_online_smoke_audit.json).
+For each stream's 20 no-memory candidate sets, the two selectors produced
+different positive-role groups on 18 items but different normalized final
+answers on only one. This descriptive check does not use targets and does
+not measure correctness; multiple candidate roles can produce the same answer.
