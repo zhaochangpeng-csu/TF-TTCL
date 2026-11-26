@@ -1,0 +1,141 @@
+{
+  "upstream_revision": "2dc099af7ce267561e4c2ae033c27eb36be5b3ea",
+  "upstream_url": "https://raw.githubusercontent.com/facebookresearch/mmf/2dc099af7ce267561e4c2ae033c27eb36be5b3ea/mmf/utils/m4c_evaluators.py",
+  "upstream_sha256": "e10a99e15c4658f8d0d83a05cc536c835922e701171fce0016718bec021b8c0a",
+  "n": 400,
+  "input_sha256": "f3196d50185da68f150c616825630216fb8d23ebce4678ab26a9ba7b0960f5fd",
+  "labels_sha256": "2c94dfe4e57161fe63f466fcc41ae792de57aa32316945044da6a1e98a11da37",
+  "results": {
+    "raw_extracted": {
+      "baseline_no_memory": {
+        "mean": 0.7227500000000004,
+        "missing_final_answer_marker": 1,
+        "answers_changed_by_old_normalization": 327
+      },
+      "baseline_memory": {
+        "mean": 0.6535000000000002,
+        "missing_final_answer_marker": 35,
+        "answers_changed_by_old_normalization": 328
+      },
+      "strengthened_no_memory": {
+        "mean": 0.794,
+        "missing_final_answer_marker": 1,
+        "answers_changed_by_old_normalization": 322
+      },
+      "strengthened_memory": {
+        "mean": 0.7157500000000003,
+        "missing_final_answer_marker": 224,
+        "answers_changed_by_old_normalization": 331
+      }
+    },
+    "recorded_normalized": {
+      "baseline_no_memory": {
+        "mean": 0.7080000000000003,
+        "missing_final_answer_marker": 1,
+        "answers_changed_by_old_normalization": 327
+      },
+      "baseline_memory": {
+        "mean": 0.6322500000000002,
+        "missing_final_answer_marker": 35,
+        "answers_changed_by_old_normalization": 328
+      },
+      "strengthened_no_memory": {
+        "mean": 0.7715000000000002,
+        "missing_final_answer_marker": 1,
+        "answers_changed_by_old_normalization": 322
+      },
+      "strengthened_memory": {
+        "mean": 0.6912500000000005,
+        "missing_final_answer_marker": 224,
+        "answers_changed_by_old_normalization": 331
+      }
+    }
+  },
+  "contrasts": {
+    "raw_extracted": {
+      "memory_baseline": {
+        "mean_and_95pct_ci": [
+          -0.06925000000000002,
+          -0.10850000000000001,
+          -0.031
+        ],
+        "paired_sign_randomization_p": 0.0006999300069993001
+      },
+      "memory_short": {
+        "mean_and_95pct_ci": [
+          -0.07824999999999999,
+          -0.11275,
+          -0.04575
+        ],
+        "paired_sign_randomization_p": 0.00019998000199980003
+      },
+      "format_no_memory": {
+        "mean_and_95pct_ci": [
+          0.07124999999999998,
+          0.041499999999999995,
+          0.103
+        ],
+        "paired_sign_randomization_p": 9.999000099990002e-05
+      },
+      "format_memory": {
+        "mean_and_95pct_ci": [
+          0.06225000000000001,
+          0.0235,
+          0.10075
+        ],
+        "paired_sign_randomization_p": 0.0013998600139986002
+      },
+      "interaction": {
+        "mean_and_95pct_ci": [
+          -0.009,
+          -0.06049999999999999,
+          0.041000000000000016
+        ],
+        "paired_sign_randomization_p": 0.7344265573442655
+      }
+    },
+    "recorded_normalized": {
+      "memory_baseline": {
+        "mean_and_95pct_ci": [
+          -0.07575000000000003,
+          -0.11374999999999998,
+          -0.03925
+        ],
+        "paired_sign_randomization_p": 0.0004999500049995
+      },
+      "memory_short": {
+        "mean_and_95pct_ci": [
+          -0.08025,
+          -0.11375000000000002,
+          -0.048499999999999995
+        ],
+        "paired_sign_randomization_p": 9.999000099990002e-05
+      },
+      "format_no_memory": {
+        "mean_and_95pct_ci": [
+          0.06349999999999997,
+          0.035500000000000004,
+          0.09300000000000003
+        ],
+        "paired_sign_randomization_p": 9.999000099990002e-05
+      },
+      "format_memory": {
+        "mean_and_95pct_ci": [
+          0.059,
+          0.020500000000000008,
+          0.09725
+        ],
+        "paired_sign_randomization_p": 0.0023997600239976003
+      },
+      "interaction": {
+        "mean_and_95pct_ci": [
+          -0.004499999999999997,
+          -0.05499999999999998,
+          0.04425
+        ],
+        "paired_sign_randomization_p": 0.8663133686631337
+      }
+    }
+  },
+  "note": "Post-hoc exploratory re-score; raw answer uses existing deterministic extraction, including last-line fallback when no marker. Not verified against EvalAI server."
+}
