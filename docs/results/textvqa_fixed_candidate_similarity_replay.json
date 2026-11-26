@@ -1,0 +1,134 @@
+{
+  "original_select_no_memory_scored.json": {
+    "protocol": "exploratory_fixed_candidate_answer_similarity_mmf_v1",
+    "count": 400,
+    "source_predictions_sha256": "1e09c91f5aa3b0fbffac8a9201178e0779556a3eccf1b984666ec501cb2f053f",
+    "source_manifest_sha256": "706d30dc5748ec207b290f99acacd94565abfd41f4f30884929a697f9cab9923",
+    "source_inference_sha256": "f3196d50185da68f150c616825630216fb8d23ebce4678ab26a9ba7b0960f5fd",
+    "subset_manifest_sha256": "c8916fe1b1aea8650056086be1d868b11b1add52b93a598cc56851b37c431eaf",
+    "labels_sha256": "2c94dfe4e57161fe63f466fcc41ae792de57aa32316945044da6a1e98a11da37",
+    "replay_sha256": "a680981707d41796daf22af20fe11633c6e56489c7e6c3d1a21dc021b7af35d3",
+    "arm": "select_no_memory",
+    "upstream_revision": "2dc099af7ce267561e4c2ae033c27eb36be5b3ea",
+    "upstream_url": "https://raw.githubusercontent.com/facebookresearch/mmf/2dc099af7ce267561e4c2ae033c27eb36be5b3ea/mmf/utils/m4c_evaluators.py",
+    "upstream_sha256": "e10a99e15c4658f8d0d83a05cc536c835922e701171fce0016718bec021b8c0a",
+    "answer_extraction": "existing raw final-answer extraction with last-line fallback",
+    "results": {
+      "original_mean": 0.7227500000000004,
+      "replay_mean": 0.7487500000000002,
+      "paired_delta": {
+        "mean_and_95pct_ci": [
+          0.025999999999999995,
+          0.008,
+          0.045250000000000005
+        ],
+        "paired_sign_randomization_p": 0.00598907470703125
+      },
+      "improved_items": 15,
+      "worsened_items": 4,
+      "unchanged_items": 381,
+      "selected_role_changed_items": 97,
+      "normalized_answer_changed_items": 32
+    },
+    "interpretation": "Exploratory fixed-candidate output-only re-selection. The recorded online memory and all earlier decisions are unchanged; this is not a new online memory run. Paired resampling concerns the 400-item development stream, not confirmed generalization."
+  },
+  "original_tf_ttcl_mm_direct_scored.json": {
+    "protocol": "exploratory_fixed_candidate_answer_similarity_mmf_v1",
+    "count": 400,
+    "source_predictions_sha256": "1e09c91f5aa3b0fbffac8a9201178e0779556a3eccf1b984666ec501cb2f053f",
+    "source_manifest_sha256": "706d30dc5748ec207b290f99acacd94565abfd41f4f30884929a697f9cab9923",
+    "source_inference_sha256": "f3196d50185da68f150c616825630216fb8d23ebce4678ab26a9ba7b0960f5fd",
+    "subset_manifest_sha256": "c8916fe1b1aea8650056086be1d868b11b1add52b93a598cc56851b37c431eaf",
+    "labels_sha256": "2c94dfe4e57161fe63f466fcc41ae792de57aa32316945044da6a1e98a11da37",
+    "replay_sha256": "eacf4c6f475725ca3a7eaca71b4b3524a7ad75be829e56f8c08d3e37092af2a2",
+    "arm": "tf_ttcl_mm_direct",
+    "upstream_revision": "2dc099af7ce267561e4c2ae033c27eb36be5b3ea",
+    "upstream_url": "https://raw.githubusercontent.com/facebookresearch/mmf/2dc099af7ce267561e4c2ae033c27eb36be5b3ea/mmf/utils/m4c_evaluators.py",
+    "upstream_sha256": "e10a99e15c4658f8d0d83a05cc536c835922e701171fce0016718bec021b8c0a",
+    "answer_extraction": "existing raw final-answer extraction with last-line fallback",
+    "results": {
+      "original_mean": 0.6535000000000002,
+      "replay_mean": 0.6742500000000002,
+      "paired_delta": {
+        "mean_and_95pct_ci": [
+          0.020749999999999998,
+          0.004000000000000001,
+          0.03924999999999999
+        ],
+        "paired_sign_randomization_p": 0.0224456787109375
+      },
+      "improved_items": 13,
+      "worsened_items": 4,
+      "unchanged_items": 383,
+      "selected_role_changed_items": 66,
+      "normalized_answer_changed_items": 27
+    },
+    "interpretation": "Exploratory fixed-candidate output-only re-selection. The recorded online memory and all earlier decisions are unchanged; this is not a new online memory run. Paired resampling concerns the 400-item development stream, not confirmed generalization."
+  },
+  "short_final_select_no_memory_scored.json": {
+    "protocol": "exploratory_fixed_candidate_answer_similarity_mmf_v1",
+    "count": 400,
+    "source_predictions_sha256": "7ee0e98da969ad501679b7144dc8bbeef31313640447ffc6626e2318b3de9d9c",
+    "source_manifest_sha256": "05ac8de5e574158af027013aaafb0a56aca829f891900d3ebef5d2604de49462",
+    "source_inference_sha256": "f3196d50185da68f150c616825630216fb8d23ebce4678ab26a9ba7b0960f5fd",
+    "subset_manifest_sha256": "c8916fe1b1aea8650056086be1d868b11b1add52b93a598cc56851b37c431eaf",
+    "labels_sha256": "2c94dfe4e57161fe63f466fcc41ae792de57aa32316945044da6a1e98a11da37",
+    "replay_sha256": "85ee38d36544afb595ff10bbda82dd33e54b246cbc4ccb489d67d67775bf8eaf",
+    "arm": "select_no_memory",
+    "upstream_revision": "2dc099af7ce267561e4c2ae033c27eb36be5b3ea",
+    "upstream_url": "https://raw.githubusercontent.com/facebookresearch/mmf/2dc099af7ce267561e4c2ae033c27eb36be5b3ea/mmf/utils/m4c_evaluators.py",
+    "upstream_sha256": "e10a99e15c4658f8d0d83a05cc536c835922e701171fce0016718bec021b8c0a",
+    "answer_extraction": "existing raw final-answer extraction with last-line fallback",
+    "results": {
+      "original_mean": 0.794,
+      "replay_mean": 0.8025,
+      "paired_delta": {
+        "mean_and_95pct_ci": [
+          0.008499999999999999,
+          -0.010249999999999999,
+          0.028250000000000008
+        ],
+        "paired_sign_randomization_p": 0.40375962403759624
+      },
+      "improved_items": 13,
+      "worsened_items": 9,
+      "unchanged_items": 378,
+      "selected_role_changed_items": 94,
+      "normalized_answer_changed_items": 30
+    },
+    "interpretation": "Exploratory fixed-candidate output-only re-selection. The recorded online memory and all earlier decisions are unchanged; this is not a new online memory run. Paired resampling concerns the 400-item development stream, not confirmed generalization."
+  },
+  "short_final_tf_ttcl_mm_direct_scored.json": {
+    "protocol": "exploratory_fixed_candidate_answer_similarity_mmf_v1",
+    "count": 400,
+    "source_predictions_sha256": "7ee0e98da969ad501679b7144dc8bbeef31313640447ffc6626e2318b3de9d9c",
+    "source_manifest_sha256": "05ac8de5e574158af027013aaafb0a56aca829f891900d3ebef5d2604de49462",
+    "source_inference_sha256": "f3196d50185da68f150c616825630216fb8d23ebce4678ab26a9ba7b0960f5fd",
+    "subset_manifest_sha256": "c8916fe1b1aea8650056086be1d868b11b1add52b93a598cc56851b37c431eaf",
+    "labels_sha256": "2c94dfe4e57161fe63f466fcc41ae792de57aa32316945044da6a1e98a11da37",
+    "replay_sha256": "33a5ecaa33c7795c4335341bf07d0405cfdf06bdc34a010b223a06b351687108",
+    "arm": "tf_ttcl_mm_direct",
+    "upstream_revision": "2dc099af7ce267561e4c2ae033c27eb36be5b3ea",
+    "upstream_url": "https://raw.githubusercontent.com/facebookresearch/mmf/2dc099af7ce267561e4c2ae033c27eb36be5b3ea/mmf/utils/m4c_evaluators.py",
+    "upstream_sha256": "e10a99e15c4658f8d0d83a05cc536c835922e701171fce0016718bec021b8c0a",
+    "answer_extraction": "existing raw final-answer extraction with last-line fallback",
+    "results": {
+      "original_mean": 0.7157500000000003,
+      "replay_mean": 0.7312500000000004,
+      "paired_delta": {
+        "mean_and_95pct_ci": [
+          0.0155,
+          0.0015000000000000002,
+          0.030750000000000003
+        ],
+        "paired_sign_randomization_p": 0.0390625
+      },
+      "improved_items": 9,
+      "worsened_items": 3,
+      "unchanged_items": 388,
+      "selected_role_changed_items": 71,
+      "normalized_answer_changed_items": 17
+    },
+    "interpretation": "Exploratory fixed-candidate output-only re-selection. The recorded online memory and all earlier decisions are unchanged; this is not a new online memory run. Paired resampling concerns the 400-item development stream, not confirmed generalization."
+  }
+}
