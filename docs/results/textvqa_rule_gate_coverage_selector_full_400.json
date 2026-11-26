@@ -1,0 +1,171 @@
+{
+  "gate_version": "first_sentence_lexical_reasoning_conflict_v1",
+  "prediction_sha256": "dd6b4d05fce382c982a0d9e355cd10dc8030b7a2144a3eaf14f3582cec570aec",
+  "samples": 400,
+  "labels_read": false,
+  "prediction_values_accessed": false,
+  "retrieved_rule_instances": 23070,
+  "matched_retrieval_instances": 1041,
+  "matched_by_bucket": {
+    "negative": 1041
+  },
+  "matched_by_pattern": {
+    "avoid_omit_skip_forgo_near_reasoning": 1041
+  },
+  "unique_retrieved_rules": 538,
+  "unique_matched_rules": 24,
+  "samples_with_match": 383,
+  "samples_without_match": 17,
+  "matches_per_sample": {
+    "0": 17,
+    "1": 99,
+    "2": 115,
+    "3": 72,
+    "4": 42,
+    "5": 29,
+    "6": 13,
+    "7": 6,
+    "8": 2,
+    "9": 3,
+    "10": 2
+  },
+  "examples": [
+    {
+      "sample_id": "32688",
+      "sample_index": 3,
+      "bucket": "negative",
+      "rule_id": "negative_2",
+      "text": "**Avoid unnecessary details in the reasoning section of answers.**\n\nThis rule helps maintain brevity while ensuring the core information is conveyed clearly and concisely.",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid unnecessary details in the reasoning",
+        "span": [
+          2,
+          44
+        ],
+        "gap_characters": 28,
+        "first_sentence": "**Avoid unnecessary details in the reasoning section of answers"
+      }
+    },
+    {
+      "sample_id": "28695",
+      "sample_index": 4,
+      "bucket": "negative",
+      "rule_id": "negative_2",
+      "text": "**Avoid unnecessary details in the reasoning section of answers.**\n\nThis rule helps maintain brevity while ensuring the core information is conveyed clearly and concisely.",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid unnecessary details in the reasoning",
+        "span": [
+          2,
+          44
+        ],
+        "gap_characters": 28,
+        "first_sentence": "**Avoid unnecessary details in the reasoning section of answers"
+      }
+    },
+    {
+      "sample_id": "21989",
+      "sample_index": 5,
+      "bucket": "negative",
+      "rule_id": "negative_2",
+      "text": "**Avoid unnecessary details in the reasoning section of answers.**\n\nThis rule helps maintain brevity while ensuring the core information is conveyed clearly and concisely.",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid unnecessary details in the reasoning",
+        "span": [
+          2,
+          44
+        ],
+        "gap_characters": 28,
+        "first_sentence": "**Avoid unnecessary details in the reasoning section of answers"
+      }
+    },
+    {
+      "sample_id": "16531",
+      "sample_index": 6,
+      "bucket": "negative",
+      "rule_id": "negative_2",
+      "text": "**Avoid unnecessary details in the reasoning section of answers.**\n\nThis rule helps maintain brevity while ensuring the core information is conveyed clearly and concisely.",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid unnecessary details in the reasoning",
+        "span": [
+          2,
+          44
+        ],
+        "gap_characters": 28,
+        "first_sentence": "**Avoid unnecessary details in the reasoning section of answers"
+      }
+    },
+    {
+      "sample_id": "9558",
+      "sample_index": 7,
+      "bucket": "negative",
+      "rule_id": "negative_2",
+      "text": "**Avoid unnecessary details in the reasoning section of answers.**\n\nThis rule helps maintain brevity while ensuring the core information is conveyed clearly and concisely.",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid unnecessary details in the reasoning",
+        "span": [
+          2,
+          44
+        ],
+        "gap_characters": 28,
+        "first_sentence": "**Avoid unnecessary details in the reasoning section of answers"
+      }
+    },
+    {
+      "sample_id": "7942",
+      "sample_index": 8,
+      "bucket": "negative",
+      "rule_id": "negative_2",
+      "text": "**Avoid unnecessary details in the reasoning section of answers.**\n\nThis rule helps maintain brevity while ensuring the core information is conveyed clearly and concisely.",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid unnecessary details in the reasoning",
+        "span": [
+          2,
+          44
+        ],
+        "gap_characters": 28,
+        "first_sentence": "**Avoid unnecessary details in the reasoning section of answers"
+      }
+    },
+    {
+      "sample_id": "26501",
+      "sample_index": 9,
+      "bucket": "negative",
+      "rule_id": "negative_2",
+      "text": "**Avoid unnecessary details in the reasoning section of answers.**\n\nThis rule helps maintain brevity while ensuring the core information is conveyed clearly and concisely.",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid unnecessary details in the reasoning",
+        "span": [
+          2,
+          44
+        ],
+        "gap_characters": 28,
+        "first_sentence": "**Avoid unnecessary details in the reasoning section of answers"
+      }
+    },
+    {
+      "sample_id": "7500",
+      "sample_index": 10,
+      "bucket": "negative",
+      "rule_id": "negative_2",
+      "text": "**Avoid unnecessary details in the reasoning section of answers.**\n\nThis rule helps maintain brevity while ensuring the core information is conveyed clearly and concisely.",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid unnecessary details in the reasoning",
+        "span": [
+          2,
+          44
+        ],
+        "gap_characters": 28,
+        "first_sentence": "**Avoid unnecessary details in the reasoning section of answers"
+      }
+    }
+  ],
+  "interpretation": "First-sentence lexical match only; does not judge semantic conflict or rule truth."
+}

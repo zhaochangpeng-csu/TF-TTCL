@@ -1,0 +1,168 @@
+{
+  "gate_version": "first_sentence_lexical_reasoning_conflict_v1",
+  "prediction_sha256": "7ee0e98da969ad501679b7144dc8bbeef31313640447ffc6626e2318b3de9d9c",
+  "samples": 400,
+  "labels_read": false,
+  "prediction_values_accessed": false,
+  "retrieved_rule_instances": 23070,
+  "matched_retrieval_instances": 358,
+  "matched_by_bucket": {
+    "negative": 358
+  },
+  "matched_by_pattern": {
+    "avoid_omit_skip_forgo_near_reasoning": 358
+  },
+  "unique_retrieved_rules": 546,
+  "unique_matched_rules": 13,
+  "samples_with_match": 232,
+  "samples_without_match": 168,
+  "matches_per_sample": {
+    "0": 168,
+    "1": 154,
+    "2": 48,
+    "3": 21,
+    "4": 5,
+    "5": 2,
+    "7": 1,
+    "8": 1
+  },
+  "examples": [
+    {
+      "sample_id": "28586",
+      "sample_index": 53,
+      "bucket": "negative",
+      "rule_id": "negative_52",
+      "text": "Avoid unnecessary reasoning for straightforward questions.",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid unnecessary reasoning",
+        "span": [
+          0,
+          27
+        ],
+        "gap_characters": 13,
+        "first_sentence": "Avoid unnecessary reasoning for straightforward questions"
+      }
+    },
+    {
+      "sample_id": "23259",
+      "sample_index": 54,
+      "bucket": "negative",
+      "rule_id": "negative_52",
+      "text": "Avoid unnecessary reasoning for straightforward questions.",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid unnecessary reasoning",
+        "span": [
+          0,
+          27
+        ],
+        "gap_characters": 13,
+        "first_sentence": "Avoid unnecessary reasoning for straightforward questions"
+      }
+    },
+    {
+      "sample_id": "30926",
+      "sample_index": 56,
+      "bucket": "negative",
+      "rule_id": "negative_52",
+      "text": "Avoid unnecessary reasoning for straightforward questions.",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid unnecessary reasoning",
+        "span": [
+          0,
+          27
+        ],
+        "gap_characters": 13,
+        "first_sentence": "Avoid unnecessary reasoning for straightforward questions"
+      }
+    },
+    {
+      "sample_id": "9095",
+      "sample_index": 58,
+      "bucket": "negative",
+      "rule_id": "negative_52",
+      "text": "Avoid unnecessary reasoning for straightforward questions.",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid unnecessary reasoning",
+        "span": [
+          0,
+          27
+        ],
+        "gap_characters": 13,
+        "first_sentence": "Avoid unnecessary reasoning for straightforward questions"
+      }
+    },
+    {
+      "sample_id": "18872",
+      "sample_index": 59,
+      "bucket": "negative",
+      "rule_id": "negative_52",
+      "text": "Avoid unnecessary reasoning for straightforward questions.",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid unnecessary reasoning",
+        "span": [
+          0,
+          27
+        ],
+        "gap_characters": 13,
+        "first_sentence": "Avoid unnecessary reasoning for straightforward questions"
+      }
+    },
+    {
+      "sample_id": "30661",
+      "sample_index": 60,
+      "bucket": "negative",
+      "rule_id": "negative_52",
+      "text": "Avoid unnecessary reasoning for straightforward questions.",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid unnecessary reasoning",
+        "span": [
+          0,
+          27
+        ],
+        "gap_characters": 13,
+        "first_sentence": "Avoid unnecessary reasoning for straightforward questions"
+      }
+    },
+    {
+      "sample_id": "4600",
+      "sample_index": 61,
+      "bucket": "negative",
+      "rule_id": "negative_53",
+      "text": "**Negative Rule:** Avoid using unnecessary reasoning when providing a direct answer.",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid using unnecessary reasoning",
+        "span": [
+          19,
+          52
+        ],
+        "gap_characters": 19,
+        "first_sentence": "**Negative Rule:** Avoid using unnecessary reasoning when providing a direct answer"
+      }
+    },
+    {
+      "sample_id": "4600",
+      "sample_index": 61,
+      "bucket": "negative",
+      "rule_id": "negative_52",
+      "text": "Avoid unnecessary reasoning for straightforward questions.",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid unnecessary reasoning",
+        "span": [
+          0,
+          27
+        ],
+        "gap_characters": 13,
+        "first_sentence": "Avoid unnecessary reasoning for straightforward questions"
+      }
+    }
+  ],
+  "interpretation": "First-sentence lexical match only; does not judge semantic conflict or rule truth."
+}

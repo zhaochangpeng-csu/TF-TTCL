@@ -1,0 +1,167 @@
+{
+  "gate_version": "first_sentence_lexical_reasoning_conflict_v1",
+  "prediction_sha256": "ad2e1fca53d01458e1ef201eadabadc1eca2dd83c77199ce78ec6216da310d10",
+  "samples": 400,
+  "labels_read": false,
+  "prediction_values_accessed": false,
+  "retrieved_rule_instances": 23070,
+  "matched_retrieval_instances": 604,
+  "matched_by_bucket": {
+    "negative": 604
+  },
+  "matched_by_pattern": {
+    "avoid_omit_skip_forgo_near_reasoning": 604
+  },
+  "unique_retrieved_rules": 553,
+  "unique_matched_rules": 14,
+  "samples_with_match": 312,
+  "samples_without_match": 88,
+  "matches_per_sample": {
+    "0": 88,
+    "1": 121,
+    "2": 117,
+    "3": 51,
+    "4": 20,
+    "5": 2,
+    "6": 1
+  },
+  "examples": [
+    {
+      "sample_id": "27363",
+      "sample_index": 11,
+      "bucket": "negative",
+      "rule_id": "negative_10",
+      "text": "**Avoid providing the wrong final answer when the reasoning supports a different conclusion.**",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid providing the wrong final answer when the reasoning",
+        "span": [
+          2,
+          59
+        ],
+        "gap_characters": 43,
+        "first_sentence": "**Avoid providing the wrong final answer when the reasoning supports a different conclusion"
+      }
+    },
+    {
+      "sample_id": "22573",
+      "sample_index": 12,
+      "bucket": "negative",
+      "rule_id": "negative_10",
+      "text": "**Avoid providing the wrong final answer when the reasoning supports a different conclusion.**",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid providing the wrong final answer when the reasoning",
+        "span": [
+          2,
+          59
+        ],
+        "gap_characters": 43,
+        "first_sentence": "**Avoid providing the wrong final answer when the reasoning supports a different conclusion"
+      }
+    },
+    {
+      "sample_id": "15436",
+      "sample_index": 13,
+      "bucket": "negative",
+      "rule_id": "negative_10",
+      "text": "**Avoid providing the wrong final answer when the reasoning supports a different conclusion.**",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid providing the wrong final answer when the reasoning",
+        "span": [
+          2,
+          59
+        ],
+        "gap_characters": 43,
+        "first_sentence": "**Avoid providing the wrong final answer when the reasoning supports a different conclusion"
+      }
+    },
+    {
+      "sample_id": "14549",
+      "sample_index": 14,
+      "bucket": "negative",
+      "rule_id": "negative_10",
+      "text": "**Avoid providing the wrong final answer when the reasoning supports a different conclusion.**",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid providing the wrong final answer when the reasoning",
+        "span": [
+          2,
+          59
+        ],
+        "gap_characters": 43,
+        "first_sentence": "**Avoid providing the wrong final answer when the reasoning supports a different conclusion"
+      }
+    },
+    {
+      "sample_id": "25756",
+      "sample_index": 15,
+      "bucket": "negative",
+      "rule_id": "negative_10",
+      "text": "**Avoid providing the wrong final answer when the reasoning supports a different conclusion.**",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid providing the wrong final answer when the reasoning",
+        "span": [
+          2,
+          59
+        ],
+        "gap_characters": 43,
+        "first_sentence": "**Avoid providing the wrong final answer when the reasoning supports a different conclusion"
+      }
+    },
+    {
+      "sample_id": "30390",
+      "sample_index": 16,
+      "bucket": "negative",
+      "rule_id": "negative_10",
+      "text": "**Avoid providing the wrong final answer when the reasoning supports a different conclusion.**",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid providing the wrong final answer when the reasoning",
+        "span": [
+          2,
+          59
+        ],
+        "gap_characters": 43,
+        "first_sentence": "**Avoid providing the wrong final answer when the reasoning supports a different conclusion"
+      }
+    },
+    {
+      "sample_id": "22638",
+      "sample_index": 17,
+      "bucket": "negative",
+      "rule_id": "negative_10",
+      "text": "**Avoid providing the wrong final answer when the reasoning supports a different conclusion.**",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid providing the wrong final answer when the reasoning",
+        "span": [
+          2,
+          59
+        ],
+        "gap_characters": 43,
+        "first_sentence": "**Avoid providing the wrong final answer when the reasoning supports a different conclusion"
+      }
+    },
+    {
+      "sample_id": "32415",
+      "sample_index": 18,
+      "bucket": "negative",
+      "rule_id": "negative_10",
+      "text": "**Avoid providing the wrong final answer when the reasoning supports a different conclusion.**",
+      "match": {
+        "pattern": "avoid_omit_skip_forgo_near_reasoning",
+        "matched_text": "Avoid providing the wrong final answer when the reasoning",
+        "span": [
+          2,
+          59
+        ],
+        "gap_characters": 43,
+        "first_sentence": "**Avoid providing the wrong final answer when the reasoning supports a different conclusion"
+      }
+    }
+  ],
+  "interpretation": "First-sentence lexical match only; does not judge semantic conflict or rule truth."
+}
