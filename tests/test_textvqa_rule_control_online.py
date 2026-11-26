@@ -33,12 +33,18 @@ class RuleControlTests(unittest.TestCase):
         self.samples = [MultimodalSample(str(i), 'textvqa', f'Question {i}?', (str(image),)) for i in range(3)]
 
     def runner(self, policy, path):
-        return TextVQARuleControlRunner(GateBackend(), Embedder(), Words(), self.samples,
-                                       path, 'source', 'model', 'embedding', seed=0, policy=policy)
+        # Production runs use an explicit archive identity in source snapshots
+        # without .git; keep this synthetic fixture independent of the checkout.
+        with patch('core.multimodal.tf_ttcl_direct_runner.subprocess.check_output',
+                   return_value='archive:fixture:stack'):
+            return TextVQARuleControlRunner(GateBackend(), Embedder(), Words(), self.samples,
+                                           path, 'source', 'model', 'embedding', seed=0, policy=policy)
 
     def test_exact_baseline_inputs_and_outputs_match_original_selector(self):
-        baseline = TextVQASelectorRunner(GateBackend(), Embedder(), self.samples,
-                    self.root/'selector', 'source', 'model', 'embedding', selector='full_response')
+        with patch('core.multimodal.tf_ttcl_direct_runner.subprocess.check_output',
+                   return_value='archive:fixture:stack'):
+            baseline = TextVQASelectorRunner(GateBackend(), Embedder(), self.samples,
+                        self.root/'selector', 'source', 'model', 'embedding', selector='full_response')
         control = self.runner('original', self.root/'original')
         for index, sample in enumerate(self.samples):
             expected = baseline._sample(sample, index)
