@@ -1,0 +1,192 @@
+{
+  "protocol": "textvqa_selector_online_v1",
+  "n": 400,
+  "metrics": {
+    "greedy": {
+      "mean": 0.8205000000000001,
+      "selected_output_format_rate": 0.9975,
+      "missing_final_answer_marker": 1,
+      "mean_extracted_answer_words": 1.7525
+    },
+    "full_no_memory": {
+      "mean": 0.7980000000000002,
+      "selected_output_format_rate": 0.9975,
+      "missing_final_answer_marker": 1,
+      "mean_extracted_answer_words": 1.82
+    },
+    "answer_no_memory": {
+      "mean": 0.8125000000000001,
+      "selected_output_format_rate": 0.9975,
+      "missing_final_answer_marker": 1,
+      "mean_extracted_answer_words": 1.8
+    },
+    "full_memory": {
+      "mean": 0.7017500000000002,
+      "selected_output_format_rate": 0.6225,
+      "missing_final_answer_marker": 151,
+      "mean_extracted_answer_words": 2.4025
+    },
+    "answer_memory": {
+      "mean": 0.7202500000000001,
+      "selected_output_format_rate": 0.5325,
+      "missing_final_answer_marker": 187,
+      "mean_extracted_answer_words": 2.595
+    },
+    "fixed_full_source_full": {
+      "mean": 0.7980000000000002,
+      "selected_output_format_rate": 0.9975,
+      "missing_final_answer_marker": 1,
+      "mean_extracted_answer_words": 1.82
+    },
+    "fixed_full_source_answer": {
+      "mean": 0.8125000000000001,
+      "selected_output_format_rate": 0.9975,
+      "missing_final_answer_marker": 1,
+      "mean_extracted_answer_words": 1.8
+    }
+  },
+  "comparisons": {
+    "fixed_candidate_answer_minus_full": {
+      "mean_and_95pct_ci": [
+        0.014499999999999999,
+        0.0004999999999999999,
+        0.029750000000000002
+      ],
+      "paired_sign_randomization_p": 0.05511474609375,
+      "improved_items": 12,
+      "worsened_items": 3
+    },
+    "separate_stream_answer_minus_full_no_memory": {
+      "mean_and_95pct_ci": [
+        0.014499999999999999,
+        0.0004999999999999999,
+        0.029750000000000002
+      ],
+      "paired_sign_randomization_p": 0.05511474609375,
+      "improved_items": 12,
+      "worsened_items": 3
+    },
+    "online_answer_minus_full_memory": {
+      "mean_and_95pct_ci": [
+        0.018500000000000006,
+        -0.012749999999999994,
+        0.05099999999999999
+      ],
+      "paired_sign_randomization_p": 0.24827517248275172,
+      "improved_items": 30,
+      "worsened_items": 20
+    },
+    "full_memory_minus_no_memory": {
+      "mean_and_95pct_ci": [
+        -0.09625000000000002,
+        -0.133,
+        -0.060250000000000005
+      ],
+      "paired_sign_randomization_p": 9.999000099990002e-05,
+      "improved_items": 19,
+      "worsened_items": 62
+    },
+    "answer_memory_minus_no_memory": {
+      "mean_and_95pct_ci": [
+        -0.09225000000000001,
+        -0.12800000000000003,
+        -0.056499999999999995
+      ],
+      "paired_sign_randomization_p": 9.999000099990002e-05,
+      "improved_items": 17,
+      "worsened_items": 57
+    },
+    "answer_memory_minus_greedy": {
+      "mean_and_95pct_ci": [
+        -0.10025000000000002,
+        -0.138,
+        -0.06299999999999999
+      ],
+      "paired_sign_randomization_p": 9.999000099990002e-05,
+      "improved_items": 19,
+      "worsened_items": 62
+    }
+  },
+  "audits": {
+    "full_response": {
+      "status": "passed",
+      "count": 400,
+      "labels_read": false,
+      "predictions_sha256": "dd6b4d05fce382c982a0d9e355cd10dc8030b7a2144a3eaf14f3582cec570aec",
+      "config_sha256": "01a382aa1d1d505661728d939027aee73f482f34e138934755fc4622c205efa5"
+    },
+    "normalized_answer": {
+      "status": "passed",
+      "count": 400,
+      "labels_read": false,
+      "predictions_sha256": "ad2e1fca53d01458e1ef201eadabadc1eca2dd83c77199ce78ec6216da310d10",
+      "config_sha256": "aeabed881ff4b9d6f45acc6f0656eb0c6b20692cd784c9190c2f5edc89956417"
+    }
+  },
+  "cost_logical_per_arm": {
+    "full": {
+      "greedy": {
+        "prompt_tokens": 471459,
+        "completion_tokens": 16253,
+        "latency_seconds": 313.7651444664225
+      },
+      "select_no_memory": {
+        "prompt_tokens": 2394294,
+        "completion_tokens": 101113,
+        "latency_seconds": 1627.7403862373903
+      },
+      "tf_ttcl_mm_direct": {
+        "prompt_tokens": 4955314,
+        "completion_tokens": 102555,
+        "latency_seconds": 1754.2970898961648
+      }
+    },
+    "answer": {
+      "greedy": {
+        "prompt_tokens": 471459,
+        "completion_tokens": 16253,
+        "latency_seconds": 315.1443287045695
+      },
+      "select_no_memory": {
+        "prompt_tokens": 2394294,
+        "completion_tokens": 101113,
+        "latency_seconds": 1630.3876890046522
+      },
+      "tf_ttcl_mm_direct": {
+        "prompt_tokens": 5046134,
+        "completion_tokens": 98264,
+        "latency_seconds": 1701.10784821352
+      }
+    }
+  },
+  "cost_physical_stored_unique_per_stream": {
+    "full_response": {
+      "stored_unique_requests": 6767,
+      "prompt_tokens": 9167281,
+      "completion_tokens": 242333,
+      "latency_seconds": 4045.2131539019756
+    },
+    "normalized_answer": {
+      "stored_unique_requests": 6767,
+      "prompt_tokens": 9258101,
+      "completion_tokens": 238042,
+      "latency_seconds": 3998.4145126366057
+    }
+  },
+  "cost_matching": {
+    "select_no_memory": {
+      "answer_over_full": 1.0,
+      "within_5_percent": true
+    },
+    "tf_ttcl_mm_direct": {
+      "answer_over_full": 1.0171077977701677,
+      "within_5_percent": true
+    }
+  },
+  "cost_note": "Logical arms may share calls; physical totals count stored unique requests within each isolated stream, including stored interrupted attempts, but exclude failed attempts with no stored response.",
+  "input_sha256": "48d194d3b31c85d8e99336e324bd1e74842bbafb0d9e27d22093593b914754bc",
+  "labels_sha256": "1fcc463369ea046ceecee0b47645ef325ed8427d792f026776d9454a385f5b03",
+  "upstream_revision": "2dc099af7ce267561e4c2ae033c27eb36be5b3ea",
+  "upstream_sha256": "e10a99e15c4658f8d0d83a05cc536c835922e701171fce0016718bec021b8c0a",
+  "note": "One fresh developmental stream; labels used only after both audits. Pinned Meta MMF evaluator; EvalAI server parity unverified. The two selector streams have independent online rule memories and may use different physical devices; device/selector confounding and temporal dependence limit causal interpretation."
+}
