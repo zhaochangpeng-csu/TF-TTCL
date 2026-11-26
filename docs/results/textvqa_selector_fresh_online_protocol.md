@@ -8,6 +8,11 @@ and images, excluded by both ID and image ID from both previous 400-item train
 streams and the prior 5,000-item validation stream. Selection uses identifiers
 only; data preparation reads annotation records solely to export isolated
 labels. The new subset remains a development set, not a benchmark test set.
+Its selection seed is `2026112602`; the frozen selection SHA-256 is
+`cb52fa624de46e3d4d8415c02a85afbd4ca3e9331706ac45052f1209c4dc0f2b`.
+The exported manifest and inference SHA-256 values are
+`53e98605c927b92da5705d5386a6343b6cf3dd411d70ac0d1a7f9276c0f83028` and
+`48d194d3b31c85d8e99336e324bd1e74842bbafb0d9e27d22093593b914754bc`.
 
 Run two independent, strictly ordered online streams, both starting with empty
 memory. Both use the same frozen Qwen2.5-VL model, short-final prompt, images,
