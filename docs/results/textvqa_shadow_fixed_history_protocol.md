@@ -39,3 +39,10 @@ final label-free audit. Only a successful complete audit permits offline scoring
 with the pinned Meta MMF evaluator and the existing raw-answer extractor; report
 that parity with the EvalAI server has not been verified. A later complete
 online rerun on fresh questions and images is required for generalization.
+
+The 20-item smoke completed on 2026-11-26 using eight idle HCU devices.
+All shard, image, history, response trace, embedding, selection and PPL checks
+passed without reading labels or writing rules. Services were stopped before
+the CPU audit. The audit counted 385 unique stored model requests; see the
+[unscored audit](textvqa_shadow_fixed_history_smoke_audit.json). The 400-item
+run starts only after this smoke is independently audited again.
