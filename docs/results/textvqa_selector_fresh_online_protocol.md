@@ -41,3 +41,8 @@ conditions; report paired differences, 95% bootstrap intervals, format
 failures, logical/physical token costs and runtime. EvalAI server parity is
 not yet verified. A single order and single model are development evidence;
 confirmation requires further ordering seeds and another model/dataset.
+
+Both 20-item smoke streams completed on 2026-11-26 and passed the independent
+label-free selector, history and response audits; no smoke accuracy was read.
+The model services were stopped before the CPU audits. The unscored audit
+summaries are recorded in [the smoke audit](textvqa_selector_fresh_online_smoke_audit.json).

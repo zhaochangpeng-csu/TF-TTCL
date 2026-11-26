@@ -1,0 +1,14 @@
+{
+  "full_response": {
+    "status": "passed",
+    "selector": "full_response",
+    "count": 20,
+    "labels_read": false
+  },
+  "normalized_answer": {
+    "status": "passed",
+    "selector": "normalized_answer",
+    "count": 20,
+    "labels_read": false
+  }
+}
